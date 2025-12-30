@@ -1,6 +1,7 @@
+# utils/ai_utils.py
 import openai
 from io import BytesIO
-import fitz
+import fitz  # PyMuPDF
 import logging
 
 
@@ -12,12 +13,17 @@ class AIChecker:
             openai.api_key = api_key
             base_url = api_url
 
-            # 确保URL以/v1结尾
-            if not base_url.endswith("/v1"):
-                if base_url.endswith("/"):
-                    base_url = base_url + "v1"
+            # 确保URL以/v1/结尾
+            if not base_url.endswith("/v1/"):
+                if base_url.endswith("/v1"):
+                    # 如果以 /v1 结尾，添加 /
+                    base_url = base_url + "/"
+                elif base_url.endswith("/"):
+                    # 如果以 / 结尾，添加 v1/
+                    base_url = base_url + "v1/"
                 else:
-                    base_url = base_url + "/v1"
+                    # 如果不以 / 结尾，添加 /v1/
+                    base_url = base_url + "/v1/"
             openai.base_url = base_url
 
             # 发送一个简单的聊天请求
@@ -32,6 +38,7 @@ class AIChecker:
         except Exception as e:
             logging.error(f"OpenAI连接测试失败: {str(e)}")
             return False, str(e)
+
 
     @staticmethod
     def check_pdf_scanned(file_stream: BytesIO):

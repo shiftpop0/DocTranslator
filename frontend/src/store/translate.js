@@ -16,7 +16,6 @@ export const useTranslateStore = defineStore('translate-settings', () => {
     backup_model: settingsStore.system_settings.default_backup,
     prompt: settingsStore.system_settings.prompt_template,
     prompt_id: null,
-    threads: settingsStore.system_settings.max_threads,
     comparison_id: null,
     lang: '',
     doc2x_flag: '',
@@ -51,7 +50,7 @@ export const useTranslateStore = defineStore('translate-settings', () => {
   const common = ref({
     langs: ['中文', '英语'],
     type: ['trans_text', 'trans_text_only', 'trans_text_only_new'],
-    // comparison_id: null,
+    threads: settingsStore.system_settings.max_threads || 5,
     doc2x_flag: 'N',
     doc2x_secret_key: ''
   })

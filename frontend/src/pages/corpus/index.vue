@@ -166,11 +166,10 @@
 
 <script setup>
 import Filing from '@/components/filing.vue'
-// import { useRouter } from 'vue-router'
 import { store } from '@/store/index'
 import TermEdit from './components/TermEdit.vue'
 import PromptEdit from './components/PromptEdit.vue'
-import { ref, watch, onMounted } from 'vue'
+import { ref, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
   comparison_my,
@@ -194,20 +193,7 @@ const termEditRef = ref(null)
 const btnLoad = ref(false)
 const promptEditRef = ref(null)
 const tab_active = ref('terms')
-// const token = localStorage.getItem('token')
-// const prompt_id = ref(0)
-// watch(
-//   () => store.prompt,
-//   (n, o) => {
-//     if (n) {
-//       promptData.value.unshift({
-//         title: '默认提示语(无法删除)',
-//         content: store.prompt,
-//         undelete: true
-//       })
-//     }
-//   }
-// )
+
 
 // 切换tab
 function tabSelect(i) {
@@ -252,7 +238,7 @@ const getPromptList = async () => {
 }
 
 //翻译语言
-const langs = ['中文', '英语', '日语', '俄语', '阿拉伯语', '西班牙语','韩语','德语']
+const langs = ['中文', '英语', '日语', '俄语', '阿拉伯语', '西班牙语', '韩语', '德语']
 
 // 处理提示语弹窗保存逻辑
 const handlePromptConfirm = (val) => {
@@ -458,7 +444,7 @@ async function export_terms_all() {
     // 创建 `<a>` 标签并触发下载
     const a = document.createElement('a')
     a.href = url
-    a.download = `all_terms_${new Date().toISOString().slice(0, 10)}.zip` // 设置下载文件名，假设导出的是 Excel 文件
+    a.download = `all_terms_${new Date().toISOString().slice(0, 10)}.zip` // 设置下载文件名
     document.body.appendChild(a)
     a.click()
     document.body.removeChild(a)

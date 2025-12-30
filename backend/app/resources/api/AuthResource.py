@@ -2,10 +2,9 @@
 from flask import request
 from flask_restful import Resource
 from flask_jwt_extended import create_access_token
-from datetime import datetime, timedelta
-
+from datetime import datetime
 from app import db
-from app.models import  Customer, SendCode
+from app.models import Customer, SendCode
 from app.utils.security import hash_password, verify_password
 from app.utils.response import APIResponse
 from app.utils.mail_service import EmailService
@@ -17,11 +16,9 @@ from app.utils.validators import (
 )
 
 
-
-
 class SendRegisterCodeResource(Resource):
     def post(self):
-        """发送注册验证码接口[^1]"""
+        """发送注册验证码接口"""
         email = request.form.get('email')
         if Customer.query.filter_by(email=email).first():
             return APIResponse.error('邮箱已存在', 400)
@@ -45,7 +42,7 @@ class SendRegisterCodeResource(Resource):
 
 class UserRegisterResource(Resource):
     def post(self):
-        """用户注册接口[^2]"""
+        """用户注册接口"""
         data = request.form
 
         required_fields = ['email', 'password', 'code']
@@ -60,6 +57,7 @@ class UserRegisterResource(Resource):
             return APIResponse.error(msg, 400)
 
         customer = Customer(
+            name=data.get('name', ''),
             email=data['email'],
             password=hash_password(data['password']),
             created_at=datetime.utcnow(),
@@ -70,7 +68,7 @@ class UserRegisterResource(Resource):
 
         # 确保identity是字符串
         # access_token = create_access_token(identity=str(customer.id))
-        return APIResponse.success(message='注册成功！',data={
+        return APIResponse.success(message='注册成功！', data={
             # 'token': access_token,
             'email': data['email']
         })
@@ -78,7 +76,7 @@ class UserRegisterResource(Resource):
 
 class UserLoginResource(Resource):
     def post(self):
-        """用户登录接口[^3]"""
+        """用户登录接口"""
         data = request.form
         customer = Customer.query.filter_by(email=data['email']).first()
 
@@ -89,13 +87,14 @@ class UserLoginResource(Resource):
         return APIResponse.success({
             'token': access_token,
             'email': data['email'],
+            'name': customer.name,
             'level': customer.level
         })
 
 
 class SendResetCodeResource(Resource):
     def post(self):
-        """发送密码重置验证码接口[^4]"""
+        """发送密码重置验证码接口"""
         email = request.form.get('email')
         if not Customer.query.filter_by(email=email).first():
             return APIResponse.not_found('用户不存在')
@@ -119,7 +118,7 @@ class SendResetCodeResource(Resource):
 
 class ResetPasswordResource(Resource):
     def post(self):
-        """重置密码接口[^5]"""
+        """重置密码接口"""
         data = request.form
 
         # 密码一致性验证
@@ -139,4 +138,3 @@ class ResetPasswordResource(Resource):
         customer.updated_at = datetime.utcnow()
         db.session.commit()
         return APIResponse.success()
-

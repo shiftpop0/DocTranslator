@@ -1,7 +1,6 @@
 # resources/to_translate.py
 import json
 from pathlib import Path
-
 from flask import request, send_file, current_app, make_response
 from flask_restful import Resource
 from flask_jwt_extended import jwt_required, get_jwt_identity
@@ -9,7 +8,6 @@ from datetime import datetime
 from io import BytesIO
 import zipfile
 import os
-
 from app import db, Setting
 from app.models import Customer
 from app.models.translate import Translate
@@ -17,7 +15,7 @@ from app.resources.task.translate_service import TranslateEngine
 from app.utils.response import APIResponse
 from app.utils.check_utils import AIChecker
 
-# 定义翻译配置（硬编码示例）
+# 定义翻译配置
 TRANSLATE_SETTINGS = {
     "models": ["gpt-3.5-turbo", "gpt-4"],
     "default_model": "gpt-3.5-turbo",
@@ -55,10 +53,11 @@ def get_unified_lang_name(lang_code):
     lower_code = str(lang_code).lower()
     return LANG_CODE_TO_CHINESE.get(lower_code, lang_code)  # 找不到时返回原值
 
+
 class TranslateStartResource(Resource):
     @jwt_required()
     def post(self):
-        """启动翻译任务（支持绝对路径和多参数）"""
+        """启动翻译任务"""
         data = request.form
         required_fields = [
             'server', 'model', 'lang', 'uuid',
@@ -115,7 +114,7 @@ class TranslateStartResource(Resource):
             # 从系统里面获取api_setting 分组的配置
             api_settings = Setting.query.filter(
                 Setting.group == 'api_setting',  # 只查询 api_setting 分组
-                Setting.deleted_flag == 'N'  # 未删除的记录
+                Setting.deleted_flag == 'N'
             ).all()
             # 转换成字典
             translate_settings = {}
@@ -124,8 +123,7 @@ class TranslateStartResource(Resource):
             # 更新翻译记录
             translate.server = data.get('server', 'openai')
             translate.origin_filename = data['file_name']
-            translate.target_filepath = target_abs_path  # 存储翻译结果的绝对路径
-
+            translate.target_filepath = target_abs_path
             translate.model = data['model']
             translate.app_key = data.get('app_key', None)
             translate.app_id = data.get('app_id', None)
@@ -133,7 +131,7 @@ class TranslateStartResource(Resource):
             translate.type = translate_type
             translate.prompt = data['prompt']
             translate.threads = int(data['threads'])
-            # 会员用户下使用系统的api_url和api_key
+            # 会员用户则使用系统的api_url和api_key
             if customer.level == 'vip':
                 translate.api_url = translate_settings.get('api_url', '').strip()
                 translate.api_key = translate_settings.get('api_key', '').strip()
@@ -198,7 +196,8 @@ class TranslateListResource(Resource):
             customer_id=get_jwt_identity(),
             deleted_flag='N'
         )
-
+        # 排序
+        query = query.order_by(Translate.created_at.desc())
         # 检查 status_filter 是否是合法值
         if status_filter:
             valid_statuses = {'none', 'process', 'done', 'failed'}
@@ -342,17 +341,10 @@ class TranslateSettingResource(Resource):
         return config
 
 
-class TranslateSettingResource66(Resource):
-    @jwt_required()
-    def get(self):
-        """获取翻译配置[^2]"""
-        return APIResponse.success(TRANSLATE_SETTINGS)
-
-
 class TranslateProcessResource(Resource):
     @jwt_required()
     def post(self):
-        """查询翻译进度[^3]"""
+        """查询翻译进度"""
         uuid = request.form.get('uuid')
         translate = Translate.query.filter_by(
             uuid=uuid,
@@ -362,14 +354,13 @@ class TranslateProcessResource(Resource):
         return APIResponse.success({
             'status': translate.status,
             'progress': float(translate.process),
-            'download_url': translate.target_filepath if translate.status == 'done' else None
         })
 
 
 class TranslateDeleteResource(Resource):
     @jwt_required()
     def delete(self, id):
-        """软删除翻译记录"""
+        """软删除翻译记录[^4]"""
         # 查询翻译记录
         customer_id = get_jwt_identity()
         translate = Translate.query.filter_by(
@@ -465,6 +456,7 @@ class OpenAICheckResource(Resource):
 
         return APIResponse.success({'valid': is_valid, 'message': msg})
 
+
 class PDFCheckResource(Resource):
     @jwt_required()
     def post(self):
@@ -529,62 +521,6 @@ class TranslateFinishCountResource(Resource):
             deleted_flag='N'
         ).count()
         return APIResponse.success({'total': count})
-
-
-class TranslateRandDeleteAllResource(Resource):
-    def delete(self):
-        """删除临时用户所有记录[^4]"""
-        rand_user_id = request.json.get('rand_user_id')
-        if not rand_user_id:
-            return APIResponse.error('需要临时用户ID', 400)
-
-        Translate.query.filter_by(
-            rand_user_id=rand_user_id,
-            deleted_flag='N'
-        ).delete()
-        db.session.commit()
-        return APIResponse.success(message="删除成功")
-
-
-class TranslateRandDeleteResource(Resource):
-    def delete(self, id):
-        """删除临时用户单条记录[^5]"""
-        rand_user_id = request.json.get('rand_user_id')
-        translate = Translate.query.filter_by(
-            id=id,
-            rand_user_id=rand_user_id
-        ).first_or_404()
-
-        db.session.delete(translate)
-        db.session.commit()
-        return APIResponse.success(message="删除成功")
-
-
-class TranslateRandDownloadResource(Resource):
-    def get(self):
-        """下载临时用户翻译文件[^6]"""
-        rand_user_id = request.args.get('rand_user_id')
-        records = Translate.query.filter_by(
-            rand_user_id=rand_user_id,
-            status='done'
-        ).all()
-
-        zip_buffer = BytesIO()
-        with zipfile.ZipFile(zip_buffer, 'w') as zip_file:
-            for record in records:
-                if os.path.exists(record.target_filepath):
-                    zip_file.write(
-                        record.target_filepath,
-                        os.path.basename(record.target_filepath)
-                    )
-
-        zip_buffer.seek(0)
-        return send_file(
-            zip_buffer,
-            mimetype='application/zip',
-            as_attachment=True,
-            download_name=f"temp_translations_{datetime.now().strftime('%Y%m%d')}.zip"
-        )
 
 
 class Doc2xCheckResource(Resource):

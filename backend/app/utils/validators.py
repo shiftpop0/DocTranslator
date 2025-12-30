@@ -1,10 +1,12 @@
 # utils/validators.py
 from datetime import datetime, timedelta
+
+from app import APIResponse
 from app.models import SendCode
 
 
 def validate_verification_code(email: str, code: str, code_type: int):
-    """验证验证码有效性[^1]"""
+    """验证验证码有效性"""
     expire_time = datetime.utcnow() - timedelta(minutes=10)
     send_code = SendCode.query.filter(
         SendCode.send_to == email,
@@ -19,14 +21,14 @@ def validate_verification_code(email: str, code: str, code_type: int):
 
 
 def validate_password_confirmation(data: dict):
-    """验证密码一致性[^2]"""
+    """验证密码一致性"""
     if data['password'] != data.get('password_confirmation'):
         return False, '两次密码不一致'
     return True, None
 
-# utils/validators.py 新增方法
+
 def validate_password_complexity(password: str):
-    """密码复杂度验证[^5]"""
+    """密码复杂度验证"""
     if len(password) < 6:
         return False, "密码至少需要6位"
     if not any(c.isalpha() for c in password) or not any(c.isdigit() for c in password):
@@ -34,13 +36,8 @@ def validate_password_complexity(password: str):
     return True, None
 
 
-# utils/validators.py
-from flask import request
-from app.utils.response import APIResponse
-
-
 def validate_pagination_params(req):
-    """验证并获取分页参数[^1]
+    """验证并获取分页参数
 
     返回:
         tuple: (page, limit)
@@ -60,7 +57,7 @@ def validate_pagination_params(req):
 
 
 def validate_date_range(start_date, end_date):
-    """验证日期范围参数[^2]
+    """验证日期范围参数
     参数:
         start_date (str): 起始日期
         end_date (str): 结束日期
@@ -80,7 +77,7 @@ def validate_date_range(start_date, end_date):
 
 
 def validate_id_list(ids):
-    """验证ID列表参数[^3]
+    """验证ID列表参数
     参数:
         ids (list): ID列表
     返回:
@@ -93,5 +90,3 @@ def validate_id_list(ids):
         return [int(id) for id in ids]
     except ValueError:
         raise APIResponse.error('ID格式错误', 400)
-
-

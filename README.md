@@ -66,13 +66,15 @@
 ---
 
 ## 效果如图:
-### 前端页面演示
-![前端页面](docs/images/image1.png)
-![前端页面2](docs/images/image2.png)
-### 后端页面演示
-![后端页面](docs/images/image3.png)
-![后端页面2](docs/images/image4.png)
+### 用户端页面演示
+![用户端页面](docs/images/image1.png)
+![用户端页面2](docs/images/image2.png)
+![用户端页面3](docs/images/image.png)
 
+### 管理端页面演示
+![管理端页面](docs/images/image3.png)
+![管理端页面2](docs/images/image4.png)
+![管理端页面3](docs/images/image5.png)
 
 ## 一键部署
 ```bash
@@ -102,7 +104,6 @@ cd DocTranslator
 ### 2. 配置环境变量
 
 在 `backend/.env` 文件中填写必要的环境变量
-
 
 
 ### 3. 启动后端

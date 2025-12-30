@@ -12,14 +12,14 @@ from app.utils.validators import validate_id_list
 
 class AdminSettingNoticeResource(Resource):
     def get(self):
-        """获取通知设置[^1]"""
+        """获取通知设置"""
         setting = Setting.query.filter_by(alias='notice_setting').first()
         if not setting:
             return APIResponse.success(data={'users': []})
         return APIResponse.success(data={'users': eval(setting.value)})
 
     def post(self):
-        """更新通知设置[^1]"""
+        """更新通知设置"""
         data = request.json
         users = validate_id_list(data.get('users'))
 
@@ -36,7 +36,7 @@ class AdminSettingNoticeResource(Resource):
 
 class AdminSettingApiResource(Resource):
     def get(self):
-        """获取API配置[^2]"""
+        """获取API配置"""
         settings = Setting.query.filter(Setting.group == 'api_setting').all()
         data = {
             'api_url': settings[0].value,
@@ -48,7 +48,7 @@ class AdminSettingApiResource(Resource):
         return APIResponse.success(data=data)
 
     def post(self):
-        """更新API配置[^2]"""
+        """更新API配置"""
         data = request.json
         required_fields = ['api_url', 'api_key', 'models', 'default_model', 'default_backup']
         if not all(field in data for field in required_fields):
@@ -66,7 +66,7 @@ class AdminSettingApiResource(Resource):
 
 class AdminInfoSettingOtherResource(Resource):
     def get(self):
-        """获取其他设置[^3]"""
+        """获取其他设置"""
         settings = Setting.query.filter(Setting.group == 'other_setting').all()
         data = {
             'prompt': settings[0].value,
@@ -76,10 +76,9 @@ class AdminInfoSettingOtherResource(Resource):
         return APIResponse.success(data=data)
 
 
-
 class AdminEditSettingOtherResource(Resource):
     def post(self):
-        """更新其他设置[^3]"""
+        """更新其他设置"""
         data = request.json
         required_fields = ['prompt', 'threads']
         if not all(field in data for field in required_fields):
@@ -97,14 +96,14 @@ class AdminEditSettingOtherResource(Resource):
 
 class AdminSettingSiteResource(Resource):
     def get(self):
-        """获取站点设置[^4]"""
+        """获取站点设置"""
         setting = Setting.query.filter_by(alias='version').first()
         if not setting:
             return APIResponse.success(data={'version': 'community'})
         return APIResponse.success(data={'version': setting.value})
 
     def post(self):
-        """更新站点版本[^4]"""
+        """更新站点版本"""
         version = request.json.get('version')
         if not version or version not in ['business', 'community']:
             return APIResponse.error('版本号无效', 400)
@@ -119,10 +118,10 @@ class AdminSettingSiteResource(Resource):
 
 
 # ----系统存储设置-----
-# 获取系统路径存储文件列表/删除
+# 获取系统路径存储文件列表
 class SystemStorageResource(Resource):
     def get(self):
-        """获取文件列表（保持原生路径格式）"""
+        """获取文件列表"""
         try:
             base_dir = os.path.dirname(current_app.root_path)
             storage_path = os.path.join(base_dir, 'storage')
@@ -221,7 +220,7 @@ class SystemStorageResource(Resource):
             return APIResponse.error("删除操作失败")
 
     def _clean_empty_dirs(self, file_path):
-        """递归清理空目录（私有方法）"""
+        """递归清理空目录"""
         current_dir = os.path.dirname(file_path)
         storage_root = os.path.join(os.path.dirname(current_app.root_path), 'storage')
 

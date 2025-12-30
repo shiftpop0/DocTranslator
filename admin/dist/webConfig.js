@@ -1,4 +1,4 @@
 let webConfig={
-	"webApiBaseUrl":"http://api.xxxx.com",
-	"webSystemTitle":"后台管理系统"
+	"webApiBaseUrl":"https://github.com/mingchen666/DocTranslator",
+	"webSystemTitle": "DocTranslator"
 }

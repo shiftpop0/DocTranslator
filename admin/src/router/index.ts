@@ -129,7 +129,7 @@ export const constantRoutes: RouteRecordRaw[] = [
         name: "setting_site",
         meta: {
           title: "站点设置",
-          elIcon: "tools",
+          elIcon: "setting",
           affix: true
         }
       },

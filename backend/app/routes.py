@@ -1,11 +1,11 @@
-from app.resources.admin.auth import AdminLoginResource, AdminChangePasswordResource
+from app.resources.admin.auth import AdminLoginResource
 from app.resources.admin.customer import AdminCustomerListResource, AdminCreateCustomerResource, \
     AdminCustomerDetailResource, AdminUpdateCustomerResource, AdminDeleteCustomerResource, \
     CustomerStatusResource
 from app.resources.admin.image import AdminImageResource
 from app.resources.admin.settings import AdminSettingNoticeResource, AdminSettingApiResource, \
-    AdminSettingSiteResource, AdminInfoSettingOtherResource, \
-    AdminEditSettingOtherResource, SystemStorageResource
+     AdminSettingSiteResource, AdminInfoSettingOtherResource, \
+    AdminEditSettingOtherResource
 from app.resources.admin.translate import AdminTranslateListResource, \
     AdminTranslateBatchDeleteResource, AdminTranslateRestartResource, AdminTranslateDeteleResource, \
     AdminTranslateStatisticsResource, AdminTranslateDownloadResource, \
@@ -22,7 +22,6 @@ from app.resources.api.comparison import MyComparisonListResource, SharedCompari
     DownloadTemplateResource, ImportComparisonResource, ExportComparisonResource, \
     ExportAllComparisonsResource
 from app.resources.api.customer import GuestIdResource, CustomerDetailResource
-from app.resources.api.doc2x import Doc2XTranslateStartResource, Doc2XTranslateStatusResource
 from app.resources.api.files import FileUploadResource, FileDeleteResource
 from app.resources.api.prompt import MyPromptListResource, SharedPromptListResource, \
     EditPromptResource, SharePromptResource, CopyPromptResource, FavoritePromptResource, \
@@ -31,8 +30,7 @@ from app.resources.api.setting import SystemVersionResource, SystemSettingsResou
 from app.resources.api.translate import TranslateListResource, TranslateSettingResource, \
     TranslateProcessResource, TranslateDeleteResource, TranslateDownloadResource, \
     OpenAICheckResource, PDFCheckResource, TranslateTestResource, TranslateDeleteAllResource, \
-    TranslateFinishCountResource, TranslateRandDeleteAllResource, TranslateRandDeleteResource, \
-    TranslateRandDownloadResource, Doc2xCheckResource, TranslateStartResource, \
+    TranslateFinishCountResource, Doc2xCheckResource, TranslateStartResource, \
     TranslateDownloadAllResource
 
 
@@ -48,7 +46,7 @@ def register_routes(api):
     api.add_resource(SendChangeCodeResource, '/api/change/send')
     api.add_resource(EmailChangePasswordResource, '/api/change/email')
     api.add_resource(StorageInfoResource, '/api/storage')
-    api.add_resource(UserInfoResource, '/api/user-info')
+    api.add_resource(UserInfoResource, '/api/info')
 
     api.add_resource(FileUploadResource, '/api/upload')
     api.add_resource(FileDeleteResource, '/api/delFile')
@@ -64,14 +62,8 @@ def register_routes(api):
     api.add_resource(TranslateTestResource, '/api/translate/test')
     api.add_resource(TranslateDeleteAllResource, '/api/translate/all')
     api.add_resource(TranslateFinishCountResource, '/api/translate/finish/count')
-    api.add_resource(TranslateRandDeleteAllResource, '/api/translate/rand/all')
-    api.add_resource(TranslateRandDeleteResource, '/api/translate/rand/<int:id>')
-    api.add_resource(TranslateRandDownloadResource, '/api/translate/download/rand')
     api.add_resource(Doc2xCheckResource, '/api/check/doc2x')
     api.add_resource(TranslateStartResource, '/api/translate')  # 启动翻译
-    # doc2x接口
-    api.add_resource(Doc2XTranslateStartResource, '/api/doc2x/start')
-    api.add_resource(Doc2XTranslateStatusResource, '/api/doc2x/status')
 
     api.add_resource(GuestIdResource, '/api/guest/id')
     api.add_resource(CustomerDetailResource, '/api/customer/<int:customer_id>')
@@ -89,7 +81,7 @@ def register_routes(api):
     api.add_resource(ExportComparisonResource, '/api/comparison/export/<int:id>')
     api.add_resource(ExportAllComparisonsResource, '/api/comparison/export/all')
 
-    api.add_resource(SystemVersionResource, '/api/common/version')
+    api.add_resource(SystemVersionResource, '/api/common/setting')
     api.add_resource(SystemSettingsResource, '/api/common/all_settings')
 
     api.add_resource(MyPromptListResource, '/api/prompt/my')
@@ -104,7 +96,6 @@ def register_routes(api):
 
 # -------admin-----------
     api.add_resource(AdminLoginResource, '/api/admin/login')
-    api.add_resource(AdminChangePasswordResource, '/api/admin/changepwd')
 
     api.add_resource(AdminCustomerListResource, '/api/admin/customers')
     api.add_resource(AdminCreateCustomerResource, '/api/admin/customer')
@@ -135,8 +126,5 @@ def register_routes(api):
     api.add_resource(AdminEditSettingOtherResource, '/api/admin/setting/other')
     api.add_resource(AdminSettingSiteResource, '/api/admin/setting/site')
 
-    # 系统文件存储管理
-    api.add_resource(SystemStorageResource, '/api/admin/system/storage')
+
     print("✅ 路由配置完成")  # 添加调试输出
-    # api.add_resource(TodoListResource, '/todos')
-    # api.add_resource(TodoResource, '/todos/<int:todo_id>')

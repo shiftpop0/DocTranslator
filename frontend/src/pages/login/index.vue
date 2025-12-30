@@ -15,7 +15,7 @@
           </div>
 
           <div class="brand-slogan">
-            <p class="main-slogan">AI文档智能翻译平台</p>
+            <p class="main-slogan">开源的AI文档智能翻译平台</p>
             <p class="sub-slogan">一站式文档翻译平台</p>
           </div>
 
@@ -38,7 +38,7 @@
         <div class="sidebar-footer">
           <div class="copyright-info">
             <a href="https://www.doctranslator.cn" target="_blank" class="github-link">
-              <p class="copyright">© 2025 DocTranslator 1.4.3 保留所有权利</p>
+              <p class="copyright">© 2025 DocTranslator 1.5.0 保留所有权利</p>
               <!-- 未经同意，不得删除。 -->
             </a>
           </div>
@@ -122,6 +122,13 @@
                 class="auth-form"
                 @keyup.enter="doRegister"
               >
+                <el-form-item prop="name">
+                  <el-input
+                    v-model="registerForm.name"
+                    placeholder="请输入昵称"
+                    prefix-icon="User"
+                  />
+                </el-form-item>
                 <el-form-item prop="email">
                   <el-input
                     v-model="registerForm.email"
@@ -199,11 +206,9 @@
 import { ref, reactive } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
-// 引入需要的图标
-import { Message, Lock, Key, Connection, Document, Link } from '@element-plus/icons-vue'
+import { Lock, Connection, Document } from '@element-plus/icons-vue'
 import { login, register, registerSendEmail } from '@/api/auth'
 import { useUserStore } from '@/store/user'
-
 const userStore = useUserStore()
 const router = useRouter()
 const activeTab = ref('login')
@@ -234,7 +239,8 @@ const registerForm = reactive({
   email: '',
   code: '',
   password: '',
-  password2: ''
+  password2: '',
+  name: ''
 })
 const registerRules = reactive({
   email: [
@@ -309,7 +315,7 @@ const doLogin = () => {
           ElMessage.error(res.message || '登录失败')
         }
       } catch (err) {
-        ElMessage.error(err.message || '登录失败，请稍后重试')
+        ElMessage.error(err.response.data.message || '登录失败，请稍后重试')
       } finally {
         loginLoading.value = false
       }
@@ -335,6 +341,7 @@ const doRegister = () => {
           // 清空注册表单
           Object.assign(registerForm, {
             email: '',
+            name:'',
             code: '',
             password: '',
             password2: ''
@@ -354,7 +361,7 @@ const doRegister = () => {
 }
 
 const goToForgot = () => {
-  router.push({ name: 'forget' })
+  router.push({ name: 'password' })
 }
 </script>
 

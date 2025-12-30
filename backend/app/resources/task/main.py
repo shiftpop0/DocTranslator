@@ -1,14 +1,12 @@
 import os
 from flask import current_app
-from app.extensions import db
-from app.models.comparison import Comparison
-from app.models.prompt import Prompt
 from app.models.translate import Translate
-from app.translate import word, excel, powerpoint, pdf, txt, csv_handle, md, to_translate
+from app.translate import word, excel, powerpoint, pdf,txt, csv_handle, md, to_translate
 
 
 def main_wrapper(task_id, config, origin_path):
     """
+    翻译任务核心逻辑
     :param task_id: 任务ID
     :param origin_path: 原始文件绝对路径
     :param target_path: 目标文件绝对路径
@@ -27,7 +25,6 @@ def main_wrapper(task_id, config, origin_path):
         to_translate.init_openai(config['api_url'], config['api_key'])
         # 获取文件扩展名
         extension = os.path.splitext(origin_path)[1].lower()
-        # print('文件扩展名',extension,origin_path)
         # 调用文件处理器
         handler_map = {
             ('.docx', '.doc'): word,
@@ -42,13 +39,9 @@ def main_wrapper(task_id, config, origin_path):
         # 查找匹配的处理器
         for ext_group, handler in handler_map.items():
             if extension in ext_group:
-                # if extension == '.pdf':
-                #     status = handler(config, origin_path)  # 传递 origin_path
-                # else:
-                #     status = handler.start(config)  # 传递翻译配置
+             
                 status = handler.start(
-                    # origin_path=origin_path,
-                    # target_path=target_path,
+          
                     trans=config  # 传递翻译配置
                 )
                 print('config配置项', config)
@@ -62,6 +55,15 @@ def main_wrapper(task_id, config, origin_path):
         return False
 
 
+def pdf_handler(config, origin_path):
+    pass
+    # return gptpdf.start(config)
+    # if pdf.is_scanned_pdf(origin_path):
+    #     return gptpdf.start(config)
+    # else:
+    #     # 这里均使用gptpdf实现
+    #     return gptpdf.start(config)
+    #     # return pdf.start(config)
 
 
 def _init_translate_config(trans):
@@ -91,30 +93,7 @@ def set_openai_config(api_url, api_key):
             # 如果不以 / 结尾，添加 /v1/
             base_url = base_url + "/v1/"
 
-    openai.base_url = base_url  # 注意：新版openai库使用base_url而不是api_base
+    openai.base_url = base_url
     openai.api_key = api_key
 
 
-
-def get_comparison(comparison_id):
-    """
-    加载术语对照表
-    :param comparison_id: 术语对照表ID
-    :return: 术语对照表内容
-    """
-    comparison = db.session.query(Comparison).filter_by(id=comparison_id).first()
-    if comparison and comparison.content:
-        return comparison.content.replace(',', ':').replace(';', '\n')
-    return
-
-
-def get_prompt(prompt_id):
-    """
-    加载提示词模板
-    :param prompt_id: 提示词模板ID
-    :return: 提示词内容
-    """
-    prompt = db.session.query(Prompt).filter_by(id=prompt_id).first()
-    if prompt and prompt.content:
-        return prompt.content
-    return

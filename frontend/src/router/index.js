@@ -64,20 +64,14 @@ const constantRoute = [
     meta: { guestOnly: true },
     component: () => import('@/pages/login/index.vue')
   },
-  // 忘记密码
-  {
-    path: '/forget',
-    name: 'forget',
-    meta: { guestOnly: true },
-    component: () => import('@/pages/password/forget.vue')
-  },
   // 重置密码
   {
-    path: '/reset',
-    name: 'reset',
-    meta: { guestOnly: true },
-    component: () => import('@/pages/password/reset.vue')
+    path: '/password',
+    name: 'password',
+    meta: { requiresAuth: true },
+    component: () => import('@/pages/password/index.vue')
   },
+
   // 404 路由，放在最后
   {
     path: '/404',

@@ -9,7 +9,7 @@
       </el-form-item>
 
       <el-form-item label="登录密码:">
-        <el-button @click="$router.push('/reset')">修改密码</el-button>
+        <el-button @click="$router.push('/password')">修改密码</el-button>
       </el-form-item>
 
       <el-form-item label="账号安全:">

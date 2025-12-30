@@ -1,6 +1,5 @@
 # resources/prompt.py
-from datetime import datetime, date
-
+from datetime import date
 from flask import request
 from flask_restful import Resource, reqparse
 from flask_jwt_extended import jwt_required, get_jwt_identity
@@ -9,6 +8,7 @@ from app import db
 from app.models import Customer
 from app.models.prompt import Prompt, PromptFav
 from app.utils.response import APIResponse
+
 
 # 获取提示语列表
 class MyPromptListResource(Resource):
@@ -20,7 +20,7 @@ class MyPromptListResource(Resource):
         prompts = [{
             'id': p.id,
             'title': p.title,
-            'content': p.content,# [:100] + '...' if len(p.content) > 100 else p.content
+            'content': p.content,  # [:100] + '...' if len(p.content) > 100 else p.content
             'share_flag': p.share_flag,
             'created_at': p.created_at.isoformat() if p.created_at else None
         } for p in query.all()]
@@ -30,7 +30,6 @@ class MyPromptListResource(Resource):
             'data': prompts,
             'total': len(prompts)
         })
-
 
 
 # 获取共享提示语列表
@@ -77,8 +76,10 @@ class SharedPromptListResource(Resource):
             'email': customer_email if customer_email else '匿名用户',  # 使用查询结果中的 email
             'share_flag': prompt.share_flag,
             'added_count': prompt.added_count,
-            'created_at': prompt.created_at.strftime('%Y-%m-%d') if prompt.created_at else None,  # 处理 None 值
-            'updated_at': prompt.updated_at.strftime('%Y-%m-%d') if prompt.updated_at else None,  # 处理 None 值
+            'created_at': prompt.created_at.strftime('%Y-%m-%d') if prompt.created_at else None,
+            # 处理 None 值
+            'updated_at': prompt.updated_at.strftime('%Y-%m-%d') if prompt.updated_at else None,
+            # 处理 None 值
             'fav_count': fav_count
         } for prompt, fav_count, customer_email in pagination.items]
 
@@ -87,8 +88,6 @@ class SharedPromptListResource(Resource):
             'data': prompts,
             'total': pagination.total
         })
-
-
 
 
 # 修改提示语内容
@@ -115,6 +114,7 @@ class EditPromptResource(Resource):
 
         db.session.commit()
         return APIResponse.success(message='提示语更新成功')
+
 
 # 更新共享状态
 class SharePromptResource(Resource):
@@ -161,8 +161,8 @@ class CopyPromptResource(Resource):
             share_flag='N',
             added_count=0
         )
-        print('打印原始内容长度',len(original.content))  # 打印原始内容长度
-        print('打印新内容长度',len(new_prompt.content))  # 打印新内容长度
+        print('打印原始内容长度', len(original.content))  # 打印原始内容长度
+        print('打印新内容长度', len(new_prompt.content))  # 打印新内容长度
 
         db.session.add(new_prompt)
         db.session.commit()
@@ -170,6 +170,7 @@ class CopyPromptResource(Resource):
             'new_id': new_prompt.id,
             'message': '复制成功'
         })
+
 
 # 收藏/取消收藏
 class FavoritePromptResource(Resource):
@@ -245,5 +246,3 @@ class DeletePromptResource(Resource):
         prompt.deleted_flag = 'Y'
         db.session.commit()
         return APIResponse.success(message='删除成功')
-
-

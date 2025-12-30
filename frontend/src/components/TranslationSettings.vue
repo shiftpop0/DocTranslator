@@ -3,6 +3,7 @@
     v-model="formSetShow"
     title="翻译设置"
     width="90%"
+    top="1vh"
     modal-class="setting_dialog"
     :close-on-click-modal="false"
     @close="formCancel"
@@ -76,6 +77,7 @@
             filterable
             @change="prompt_id_change"
             @focus="prompt_id_focus"
+            :loading="promptLoading"
           >
             <el-option
               v-for="item in promptData"
@@ -136,7 +138,7 @@
           </el-select>
         </el-form-item>
         <!-- 是否使用术语库 -->
-        <el-form-item label="是否使用术语库">
+        <el-form-item label="是否使用术语">
           <el-switch
             v-model="settingsForm.baidu.needIntervene"
             inline-prompt
@@ -186,13 +188,12 @@
           clearable
         />
       </el-form-item>
-      <el-form-item label="线程数" required width="100%">
+      <el-form-item label="线程数" required>
         <el-input-number
-          v-model="settingsForm.aiServer.threads"
+          v-model="settingsForm.common.threads"
           :min="1"
-          :max="20"
+          :max="10"
           :controls="true"
-          style="width: 50%"
         />
       </el-form-item>
       <!-- doc2x -->
@@ -262,14 +263,17 @@ const checking = ref(false)
 const check_text = ref('')
 const transformRef = ref(null)
 const promptData = ref([])
+const promptLoading = ref(false)
 const termsData = ref([])
-//检查docx2
 const docx2_title = ref('检查')
 const docx2_loading = ref(false)
 // 本地表单数据
 const settingsForm = ref({
   currentService: translateStore.currentService,
-  aiServer: { ...translateStore.aiServer },
+  aiServer: {
+    ...translateStore.aiServer,
+    prompt_id: String(translateStore.aiServer.prompt_id || '0')
+  },
   baidu: { ...translateStore.baidu },
   google: { ...translateStore.google },
   common: { ...translateStore.common }
@@ -370,6 +374,51 @@ const comparison_id_focus = async () => {
     console.error('获取术语库失败:', error)
   }
 }
+// 获取提示语数据 - 优化版本
+const getPromptData = async () => {
+  if (promptData.value.length > 0) return // 避免重复加载
+
+  promptLoading.value = true
+  try {
+    const res = await prompt_my()
+    if (res.code === 200) {
+      // 添加默认提示词到开头
+      const defaultPrompt = {
+        id: '0', // 使用字符串ID避免类型问题
+        title: '默认系统提示语',
+        content: settingsStore.system_settings.prompt_template
+      }
+
+      // 确保数据格式正确
+      const prompts = Array.isArray(res.data.data) ? res.data.data : []
+      promptData.value = [defaultPrompt, ...prompts]
+
+      // 检查当前选中的prompt_id是否有效
+      const currentId = settingsForm.value.aiServer.prompt_id
+      const exists = promptData.value.some((item) => String(item.id) === String(currentId))
+
+      // 如果当前选中的ID不存在，重置为默认
+      if (!exists) {
+        settingsForm.value.aiServer.prompt_id = '0'
+        settingsForm.value.aiServer.prompt = defaultPrompt.content
+      }
+    }
+  } catch (error) {
+    console.error('获取提示语数据失败:', error)
+    ElMessage.error('获取提示语数据失败')
+  } finally {
+    promptLoading.value = false
+  }
+}
+
+// 提示语选择变化 - 优化版本
+const prompt_id_change = (id) => {
+  const selectedPrompt = promptData.value.find((item) => String(item.id) === String(id))
+  if (selectedPrompt) {
+    settingsForm.value.aiServer.prompt = selectedPrompt.content
+    settingsForm.value.aiServer.prompt_id = String(id) // 确保保存为字符串
+  }
+}
 
 // 获取提示语数据
 const prompt_id_focus = async () => {
@@ -433,16 +482,6 @@ const rules = {
     }
   ]
 }
-
-// 提示语选择变化
-const prompt_id_change = (id) => {
-  const selectedPrompt = promptData.value.find((item) => item.id === id)
-  if (selectedPrompt) {
-    settingsForm.value.aiServer.prompt = selectedPrompt.content
-    settingsForm.value.aiServer.prompt_id = id
-  }
-}
-
 // doc2x检查
 function docx2_check1() {
   docx2_loading.value = true
@@ -545,16 +584,23 @@ const formConfim = (formEl) => {
 const formCancel = () => {
   formSetShow.value = false
 }
-const open = () => {
+const open = async () => {
   formSetShow.value = true
+
   // 初始化表单数据
   settingsForm.value = {
     currentService: translateStore.currentService,
-    aiServer: { ...translateStore.aiServer },
+    aiServer: {
+      ...translateStore.aiServer,
+      prompt_id: String(translateStore.aiServer.prompt_id || '0')
+    },
     baidu: { ...translateStore.baidu },
     google: { ...translateStore.google },
     common: { ...translateStore.common }
   }
+
+  // 立即加载提示语数据
+  await getPromptData()
 }
 
 function docx2_check() {
@@ -618,7 +664,7 @@ defineExpose({
   }
 }
 
-/* 原有弹窗样式 */
+/* 弹窗样式 */
 .setting_dialog {
   .el-dialog {
     max-width: 800px;
@@ -643,14 +689,10 @@ defineExpose({
     }
   }
 
-  .el-form-item {
+  :deep(.el-form-item) {
     .el-form-item__label {
       justify-content: flex-start;
       color: #111111;
-    }
-
-    .el-input-number .el-input__inner {
-      text-align: left;
     }
   }
 
@@ -736,23 +778,6 @@ defineExpose({
     label {
       display: none;
     }
-  }
-}
-.setting_dialog1 {
-  .el-dialog {
-    padding: 20px !important;
-  }
-  .el-dialog__body {
-    padding: 0 !important;
-    max-height: 300px;
-    overflow-y: auto;
-    .el-form-item {
-      display: block !important;
-      margin-bottom: 10px;
-    }
-  }
-  .btn_box {
-    text-align: right !important;
   }
 }
 </style>

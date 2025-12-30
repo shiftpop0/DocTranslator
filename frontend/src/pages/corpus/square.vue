@@ -178,7 +178,6 @@
 <script setup>
 import Filing from '@/components/filing.vue'
 // import { useRouter } from 'vue-router'
-import { store } from '@/store/index'
 import SvgIcon from '@/components/SvgIcon/index.vue'
 import { reactive, ref, computed,  onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
@@ -191,7 +190,6 @@ import {
   prompt_fav
 } from '@/api/square'
 
-// const uploadUrl = ref(import.meta.env.VITE_API_URL + '/api/comparison/import?token=' + store.token)
 const pageLoad = ref(false)
 const termsData = ref([])
 const termsTotal = ref(0)

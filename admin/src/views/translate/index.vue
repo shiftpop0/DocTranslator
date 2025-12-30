@@ -1,17 +1,11 @@
 <script lang="ts" setup>
 import { reactive, ref, watch } from "vue"
 import { getToken } from "@/utils/cache/cookies"
-import {
-  getTranslateDataApi,
-  deleteTranslateDataApi,
-  deleteMoreTranslateDataApi,
-  downloadMoreTranslateDataApi
-} from "@/api/translate"
+import { getTranslateDataApi, deleteTranslateDataApi, deleteMoreTranslateDataApi } from "@/api/translate"
 import { type GetTranslateData } from "@/api/translate/types/translate"
 import { type FormInstance, ElMessage, ElMessageBox } from "element-plus"
-import { Search, Refresh, CirclePlus, Download, Delete, RefreshRight } from "@element-plus/icons-vue"
+import { Search, Refresh, Download, Delete } from "@element-plus/icons-vue"
 import { usePagination } from "@/hooks/usePagination"
-import { cloneDeep } from "lodash-es"
 const BASE_URL = import.meta.env.VITE_BASE_API
 defineOptions({
   // 命名当前组件
@@ -156,8 +150,8 @@ watch([() => paginationData.currentPage, () => paginationData.pageSize], getTabl
       </el-form>
       <div class="table-wrapper">
         <el-table :data="translateData" @selection-change="handleSelectionChange">
-          <el-table-column type="selection" width="50" align="left" />
-          <el-table-column prop="customer_no" width="80" label="用户ID" align="left" />
+          <el-table-column type="selection" width="40" align="left" />
+          <el-table-column prop="customer_no" width="70" label="用户ID" align="left" />
           <el-table-column prop="customer_email" label="用户邮箱" width="150" align="left" />
           <el-table-column prop="origin_filename" label="文档名称" align="left" />
           <el-table-column prop="status" label="任务状态" align="left" width="120">
@@ -207,7 +201,7 @@ watch([() => paginationData.currentPage, () => paginationData.pageSize], getTabl
 
 <style lang="scss" scoped>
 .search-wrapper {
-  margin-bottom: 20px;
+  margin-bottom: 10px;
   :deep(.el-card__body) {
     padding-bottom: 2px;
   }
@@ -216,7 +210,7 @@ watch([() => paginationData.currentPage, () => paginationData.pageSize], getTabl
 .toolbar-wrapper {
   display: flex;
   justify-content: space-between;
-  margin-bottom: 20px;
+  margin-bottom: 10px;
 }
 
 .table-wrapper {

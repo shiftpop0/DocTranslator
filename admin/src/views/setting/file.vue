@@ -461,7 +461,7 @@ const confirmDelete = (type, target) => {
 
 <style scoped>
 .file-manager {
-  padding: 16px;
+  padding: 10px;
   height: 100%;
   display: flex;
   flex-direction: column;

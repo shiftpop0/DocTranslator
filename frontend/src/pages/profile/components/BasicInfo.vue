@@ -1,54 +1,38 @@
 <template>
-  <div class="basic-info">
-    <!-- 邮箱展示 -->
-    <div class="info-row">
-      <span class="info-label">邮箱账号：</span>
-      <span class="info-content">{{ userInfo.email || '-' }}</span>
+  <div class="basic-info-container">
+    <div class="section-header">
+      <h3>账户概览</h3>
+      <p class="subtitle">查看您的账户状态和资源使用情况</p>
     </div>
 
-    <!-- 会员状态 -->
-    <div class="info-row">
-      <span class="info-label">账户类型：</span>
-      <span class="info-content">
-        <span class="user-level" :class="{ vip: userInfo.level === 'vip' }">
-          {{ userInfo.level === 'vip' ? 'VIP会员' : '普通用户' }}
-          <img v-if="userInfo.level === 'vip'" src="@/assets/vip.png" class="vip-icon" />
-        </span>
-      </span>
-    </div>
-
-    <!-- 注册时间 -->
-    <div class="info-row">
-      <span class="info-label">注册时间：</span>
-      <span class="info-content">{{ formatTime(userInfo.created_at) || '-' }}</span>
-    </div>
-
-    <!-- 存储空间 -->
-    <div class="info-row">
-      <span class="info-label">存储空间：</span>
-      <div class="storage-display">
-        <div class="storage-bar">
-          <div
-            class="storage-used"
-            :style="{ width: storagePercentage + '%' }"
-            :class="{ warning: storagePercentage > 80 }"
-          ></div>
+    <!-- 存储空间卡片 -->
+    <div class="storage-card">
+      <div class="storage-header">
+        <div class="label">
+          <el-icon><Files /></el-icon> 云端存储空间
         </div>
-        <div class="storage-details">
-          <span class="storage-text"> {{ formattedStorage }} / {{ formattedAllStorage }} </span>
-          <span class="storage-percent">{{ storagePercentage }}%</span>
-          <el-button
-            v-if="userInfo.level !== 'vip'"
-            type="text"
-            size="small"
-            class="upgrade-btn"
-            @click="upgradeStorage"
-          >
-            扩容空间
-          </el-button>
-        </div>
+        <div class="value">{{ formattedStorage }} / {{ formattedAllStorage }}</div>
+      </div>
+
+      <div class="progress-wrapper">
+        <el-progress
+          :percentage="storagePercentage"
+          :stroke-width="12"
+          :color="customColors"
+          :show-text="false"
+          class="custom-progress"
+        />
+      </div>
+
+      <div class="storage-footer">
+        <span class="usage-text">已使用 {{ storagePercentage }}%</span>
+        <el-button v-if="userInfo.level !== 'vip'" type="primary" link @click="upgradeStorage">
+          升级空间 <el-icon class="el-icon--right"><ArrowRight /></el-icon>
+        </el-button>
       </div>
     </div>
+
+    <el-divider border-style="dashed" />
   </div>
 </template>
 
@@ -56,145 +40,95 @@
 import { computed, toRefs } from 'vue'
 import { useRouter } from 'vue-router'
 import { formatTime } from '@/utils/tools'
+import { Files, ArrowRight } from '@element-plus/icons-vue'
+import { ElMessage } from 'element-plus'
+
 const router = useRouter()
 const props = defineProps({
-  userInfo: {
-    type: Object,
-    required: true,
-    default: () => ({
-      email: '',
-      level: '',
-      storage: 0,
-      create_at: ''
-    })
-  }
+  userInfo: { type: Object, required: true }
 })
-
-// 使用toRefs确保响应式
 const { userInfo } = toRefs(props)
 
-// 计算存储空间百分比
 const storagePercentage = computed(() => {
-  const percentage = (userInfo.value.storage / userInfo.value.total_storage) * 100
-  return Math.min(100, parseFloat(percentage.toFixed(2)))
+  if (!userInfo.value.total_storage) return 0
+  const p = (userInfo.value.storage / userInfo.value.total_storage) * 100
+  return Math.min(100, parseFloat(p.toFixed(2)))
 })
 
-// 格式化存储显示
-const formattedStorage = computed(() => {
-  const MB = userInfo.value.storage / (1024 * 1024)
-  return MB.toFixed(2) + ' MB'
-})
-// 总存储空间
-const formattedAllStorage = computed(() => {
-  const MB = userInfo.value.total_storage / (1024 * 1024)
-  return MB.toFixed(2) + ' MB'
-})
+const formattedStorage = computed(() => (userInfo.value.storage / (1024 * 1024)).toFixed(2) + ' MB')
+const formattedAllStorage = computed(
+  () => (userInfo.value.total_storage / (1024 * 1024)).toFixed(2) + ' MB'
+)
 
-// 升级存储空间
-const upgradeStorage = () => {
-  router.push('/upgrade')
-}
+const customColors = [
+  { color: '#67c23a', percentage: 60 },
+  { color: '#e6a23c', percentage: 80 },
+  { color: '#f56c6c', percentage: 100 }
+]
+
+const upgradeStorage = () => ElMessage.info('请联系管理员扩容')
 </script>
 
 <style scoped lang="scss">
-.basic-info {
-  padding: 12px 16px;
-  font-size: 14px;
-  line-height: 1.5;
+.basic-info-container {
+  padding: 10px;
+}
 
-  .info-row {
+.section-header {
+  margin-bottom: 30px;
+  h3 {
+    font-size: 20px;
+    font-weight: 600;
+    color: #1e293b;
+    margin: 0 0 8px 0;
+  }
+  .subtitle {
+    font-size: 14px;
+    color: #94a3b8;
+    margin: 0;
+  }
+}
+
+.storage-card {
+  background: #f8fafc;
+  border-radius: 12px;
+  padding: 20px;
+  border: 1px solid #e2e8f0;
+
+  .storage-header {
     display: flex;
-    min-height: 40px;
-    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 12px;
+    font-size: 14px;
 
-    .info-label {
-      display: inline-block;
-      width: 84px;
-      text-align: right;
-      color: #888;
-      margin-right: 16px;
-      font-weight: normal;
-      flex-shrink: 0;
-    }
-
-    .info-content {
-      flex: 1;
-      color: #333;
+    .label {
       display: flex;
       align-items: center;
-      min-height: 40px;
-      padding: 4px 0;
-    }
-  }
-
-  .user-level {
-    display: inline-flex;
-    align-items: center;
-    padding: 4px 10px;
-    border-radius: 4px;
-    font-size: 13px;
-
-    background: #f5f5f5;
-    color: #666;
-
-    &.vip {
-      background: #fff8e6;
-      color: #e6a23c;
+      gap: 8px;
+      color: #475569;
       font-weight: 500;
     }
-
-    .vip-icon {
-      width: 14px;
-      height: 14px;
-      margin-left: 6px;
+    .value {
+      color: #1e293b;
+      font-weight: 600;
     }
   }
 
-  .storage-display {
-    width: 100%;
-    margin-top: 2px;
-
-    .storage-bar {
-      height: 10px;
-      background: #f0f0f0;
-      border-radius: 5px;
-      margin: 8px 0;
-      overflow: hidden;
-
-      .storage-used {
-        height: 100%;
-        background: #67c23a;
-        border-radius: 5px;
-        transition: width 0.3s ease;
-
-        &.warning {
-          background: #e6a23c;
-        }
-      }
+  .progress-wrapper {
+    margin-bottom: 12px;
+    :deep(.el-progress-bar__outer) {
+      background-color: #e2e8f0;
     }
+  }
 
-    .storage-details {
-      display: flex;
-      align-items: center;
-      font-size: 13px;
-      margin-top: -2px;
+  .storage-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 13px;
 
-      .storage-text {
-        color: #666;
-        margin-right: 12px;
-      }
-
-      .storage-percent {
-        color: #333;
-        font-weight: 500;
-        margin-right: auto;
-      }
-
-      .upgrade-btn {
-        padding: 0 6px;
-        margin-left: 8px;
-        height: 24px;
-      }
+    .usage-text {
+      color: #64748b;
     }
   }
 }

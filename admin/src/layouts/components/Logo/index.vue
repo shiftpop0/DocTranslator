@@ -20,7 +20,10 @@ const { isLeft, isTop } = useLayoutMode()
         <img :src="logo" class="layout-logo" />
       </router-link>
       <router-link v-else key="expand" to="/">
-        <img src="@/assets/layouts/logo-text-2.png" class="layout-logo-text" />
+        <div class="layout-logo-con">
+          <img :src="logo" class="layout-logo-text" />
+          <span>DocTranslator</span>
+        </div>
       </router-link>
     </transition>
   </div>
@@ -58,6 +61,15 @@ const { isLeft, isTop } = useLayoutMode()
   }
   .layout-logo-text {
     display: none;
+  }
+}
+.layout-logo-con {
+  display: flex;
+  padding: 0 24px;
+  align-items: center;
+  justify-content: space-between;
+  span {
+    font-size: 18px;
   }
 }
 </style>

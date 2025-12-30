@@ -9,6 +9,7 @@ export const useUserStore = defineStore('user-info', () => {
     "level": "",
     "created_at": "",
     "storage": null,
+    "name": "",
     "total_storage": 10000000
   })
   const isLogin = computed(() => {
@@ -46,5 +47,5 @@ export const useUserStore = defineStore('user-info', () => {
     updateStorage
   };
 }, {
-  persist: true, // 启用持久化
+  persist: true, 
 });

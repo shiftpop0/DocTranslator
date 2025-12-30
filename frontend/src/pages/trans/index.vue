@@ -166,14 +166,15 @@
             <div class="table_li">
               <!-- 翻译成功图标 -->
               <template v-if="item.status == 'done'">
-                <el-link
+                <el-button
+                  type="text"
                   class="icon_down"
-                  :href="API_URL + '/api/translate/download/' + item.id"
-                  target="_blank"
+                  @click.stop="downloadTranslateFile(item.id, item.origin_filename)"
                 >
-                  <span class="icon_handle"> <DownloadIcon /></span>
-                  <!-- <img src="@assets/icon_down.png" alt="" /> -->
-                </el-link>
+                  <span class="icon_handle">
+                    <DownloadIcon />
+                  </span>
+                </el-button>
               </template>
               <!-- 失败重试图标 -->
               <template v-if="item.status == 'failed' || item.status == 'none'">
@@ -222,7 +223,7 @@ import Filing from '@/components/filing.vue'
 import RetryIcon from '@/components/icons/RetryIcon.vue'
 import DeleteIcon from '../../components/icons/DeleteIcon.vue'
 import DownloadIcon from '../../components/icons/DownloadIcon.vue'
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 const API_URL = import.meta.env.VITE_API_URL
 import {
   checkPdf,
@@ -239,28 +240,25 @@ import {
 } from '@/api/trans'
 import { storage } from '@/api/account'
 import uploadPng from '@assets/upload.png'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessage, ElMessageBox, ElLoading } from 'element-plus'
 import { useTranslateStore } from '@/store/translate'
 import { useUserStore } from '@/store/user'
 const userStore = useUserStore()
 const translateStore = useTranslateStore()
+
 // 当前翻译服务 computed计算
 const currentServiceType = computed(() => translateStore.currentService)
+
 // 翻译数据表格加载状态
 const isLoadingData = ref(true)
 const upload_load = ref(false)
-
 const no_data = ref(true)
 
 const accepts = '.docx,.xlsx,.pptx,.pdf,.txt,.csv,.md'
 const fileListShow = ref(false)
-
-const result = ref({})
-const target_count = ref('')
-const target_time = ref('')
-const target_url = ref('')
+// 改为存储正在轮询的任务UUID
+const pollingTasks = ref(new Set())
 const upload_url = API_URL + '/api/upload'
-
 const translatesData = ref([])
 const translatesTotal = ref(0)
 const translatesLimit = ref(100)
@@ -272,7 +270,6 @@ const storagePercentage = ref(0.0)
 const editionInfo = ref(false)
 //翻译累积数量
 const transCount = ref(0)
-
 const uploadRef = ref(null)
 
 const form = ref({
@@ -293,18 +290,84 @@ const form = ref({
     '你是一个文档翻译助手，请将以下文本、单词或短语直接翻译成{target_lang}，不返回原文本。如果文本中包含{target_lang}文本、特殊名词（比如邮箱、品牌名、单位名词如mm、px、℃等）、无法翻译等特殊情况，请直接返回原文而无需解释原因。遇到无法翻译的文本直接返回原内容。保留多余空格。',
   threads: 10,
   size: 0,
-  scanned: false, // 添加 scanned 字段
-  origin_lang: '', // 添加起始语言字段
-  comparison_id: '', //术语id
-  prompt_id: '', //提示语id,
+  scanned: false,
+  origin_lang: '',
+  comparison_id: '',
+  prompt_id: '',
   translate_id: null,
   doc2x_secret_key: '',
   doc2x_flag: 'N'
 })
 
-const target_tip = computed(() => {
-  return '翻译完成！共计翻译' + this.target_count + '字数，' + this.target_time
-})
+// 下载翻译文件
+const downloadTranslateFile = async (id, filename) => {
+  try {
+    const loading = ElLoading.service({
+      lock: true,
+      text: '正在下载文件...',
+      background: 'rgba(0, 0, 0, 0.1)'
+    })
+
+    const response = await fetch(`${API_URL}/api/translate/download/${id}`, {
+      method: 'GET',
+      headers: {
+        token: userStore.token
+      }
+    })
+
+    if (!response.ok) {
+      let errorMessage = '下载失败'
+      if (response.status === 401) {
+        errorMessage = '登录已过期，请重新登录'
+      } else if (response.status === 403) {
+        errorMessage = '没有下载权限'
+      } else if (response.status === 404) {
+        errorMessage = '文件不存在'
+      }
+      throw new Error(errorMessage)
+    }
+
+    // 优先使用传入的 filename 参数
+    let downloadFilename = filename
+
+    // 如果没有传入 filename，才尝试从服务器获取
+    if (!downloadFilename) {
+      const contentDisposition = response.headers.get('content-disposition')
+      if (contentDisposition) {
+        const filenameMatch = contentDisposition.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/)
+        if (filenameMatch && filenameMatch[1]) {
+          downloadFilename = filenameMatch[1].replace(/['"]/g, '')
+        }
+      }
+    }
+
+    // 如果还是没有文件名，使用默认值
+    if (!downloadFilename) {
+      downloadFilename = `translated_file_${id}`
+    }
+
+    // 清理文件名（移除特殊字符，但保留扩展名）
+    const cleanFilename = downloadFilename.replace(/[<>:"/\\|?*]/g, '_')
+
+    const blob = await response.blob()
+    const url = window.URL.createObjectURL(blob)
+
+    const a = document.createElement('a')
+    a.href = url
+    a.download = cleanFilename
+    a.style.display = 'none'
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    window.URL.revokeObjectURL(url)
+
+    loading.close()
+    ElMessage.success('文件下载成功')
+  } catch (error) {
+    console.error('下载失败:', error)
+    ElMessage.error(error.message || '文件下载失败，请稍后重试')
+  }
+}
 
 const accpet_tip = computed(() => {
   return accepts.split(',').join('/')
@@ -325,61 +388,59 @@ function flhandleFileListChange(file, fileList) {
 
 // 进度查询 status: "done"
 function process(uuid) {
-  // // 检查是否已经完成或失败
-  // if (
-  //   result.value[uuid] &&
-  //   (result.value[uuid].status === 'done' || result.value[uuid].status === 'failed')
-  // ) {
-  //   return // 如果任务已完成或失败，直接返回
-  // }
-
-  // // 检查是否正在翻译
-  // if (!translating[uuid]) {
-  //   return
-  // }
+  // 检查任务是否还在进行中
+  if (!pollingTasks.value.has(uuid)) {
+    return
+  }
 
   // 调用翻译处理函数
   transalteProcess({ uuid })
     .then((res) => {
       if (res.code == 200) {
-        // console.log('进度查询', res.data)
+        // 查找并更新 translatesData 中对应的任务
+        const taskIndex = translatesData.value.findIndex((item) => item.uuid === uuid)
+
+        if (taskIndex !== -1) {
+          // 更新任务进度
+          translatesData.value[taskIndex].process = res.data.progress
+          translatesData.value[taskIndex].status = res.data.status
+          translatesData.value[taskIndex].status_name =
+            res.data.status === 'process'
+              ? '翻译中'
+              : res.data.status === 'done'
+                ? '已完成'
+                : res.data.status === 'failed'
+                  ? '失败'
+                  : '未开始'
+        }
+
         // 如果返回的字段中明确表示任务失败
         if (res.data.status === 'failed') {
           // 处理任务失败
           ElMessage({
-            message: '翻译失败' || '未知错误',
+            message: res.data.message || '翻译失败',
             type: 'error',
             duration: 5000
           })
+          // 从轮询任务中删除
+          pollingTasks.value.delete(uuid)
           // 更新翻译任务列表
           getTranslatesData(1)
           return // 直接返回，不再继续查询
         }
 
+        // 任务完成时
         if (res.data.progress == 100) {
-          // 任务完成
-          // translating[uuid] = false
-          // translated.value = true
-          // target_url.value = API_URL + res.data.url
-          // target_count.value = res.data.count
-          // target_time.value = res.data.time
-          // result.value[uuid]['disabled'] = false
-          // // 以下演示版存储
-          // result.value[uuid]['status'] = 'done'
-          // result.value[uuid]['spend_time'] = res.data.time
-          // result.value[uuid]['end_at'] = res.data.end_time
-          // result.value[uuid]['process'] = 100
-          // result.value[uuid]['origin_filename'] = result.value[uuid]['file_name']
-          // result.value[uuid]['target_filepath'] = res.data.url
-
           // 任务完成时，更新翻译任务列表
           ElMessage.success({
             message: '文件翻译成功！'
           })
+          // 从轮询任务中删除
+          pollingTasks.value.delete(uuid)
           getTranslatesData(1)
         } else {
           // 如果未完成，继续调用 process 函数
-          setTimeout(() => process(uuid), 10000)
+          setTimeout(() => process(uuid), 10000) // 每10秒请求一次
         }
       } else {
         // 处理错误情况（res.code != 200）
@@ -388,6 +449,8 @@ function process(uuid) {
           type: 'error',
           duration: 5000
         })
+        // 从轮询任务中删除
+        pollingTasks.value.delete(uuid)
         // 任务失败时，更新翻译任务列表
         getTranslatesData(1)
       }
@@ -399,10 +462,13 @@ function process(uuid) {
         type: 'error',
         duration: 5000
       })
+      // 从轮询任务中删除
+      pollingTasks.value.delete(uuid)
       // 任务失败时，更新翻译任务列表
       getTranslatesData(1)
     })
 }
+
 // doc2x进度查询
 const doc2xStatusQuery = async (data) => {
   const res = await doc2xQueryStatusService(data)
@@ -440,19 +506,14 @@ const doc2xStatusQuery = async (data) => {
     getTranslatesData(1)
   }
 }
+
 // 启动翻译-----立即翻译-------
 async function handleTranslate(transform) {
   // 首先再次赋值，防止没有更新
   form.value = { ...form.value, ...translateStore.getCurrentServiceForm }
-  // 1.判断是否上传文件
-  // if (form.value.files.length <= 0) {
-  //   ElMessage({
-  //     message: '请上传文件',
-  //     type: 'error'
-  //   })
-  //   return
-  // }
+
   const file_suffix = form.value.files[0].file_name.split('.').pop().toLowerCase()
+
   // 先判断是不是pdf文件和是否启用doc2x
   if (
     file_suffix == 'pdf' &&
@@ -460,7 +521,7 @@ async function handleTranslate(transform) {
     translateStore.common.doc2x_secret_key !== ''
   ) {
     form.value.server = 'doc2x'
-    // console.log('翻译pdf表单：', form.value)
+
     // 1.启动doc2x翻译
     const res = await doc2xStartService(form.value)
     if (res.code == 200) {
@@ -556,6 +617,10 @@ async function handleTranslate(transform) {
       message: '提交翻译任务成功！',
       type: 'success'
     })
+
+    // 添加到轮询任务集合
+    pollingTasks.value.add(form.value.uuid)
+
     // 刷新翻译列表
     getTranslatesData(1)
     // 启动任务查询
@@ -570,10 +635,12 @@ async function handleTranslate(transform) {
   // 4.清空上传文件列表
   uploadRef.value.clearFiles()
 }
+
 // 重启翻译任务
 async function retryTranslate(item) {
   form.value.uuid = item.uuid
   form.value.file_name = item.origin_filename
+
   // 先判断是不是doc2x失败
   if (item.server == 'doc2x') {
     // 1.启动doc2x翻译
@@ -595,6 +662,7 @@ async function retryTranslate(item) {
     }
     return
   }
+
   // 3.重启翻译任务
   const res = await transalteFile(form.value)
   if (res.code == 200) {
@@ -602,6 +670,10 @@ async function retryTranslate(item) {
       message: '启动翻译任务成功！',
       type: 'success'
     })
+
+    // 添加到轮询任务集合
+    pollingTasks.value.add(item.uuid)
+
     // 刷新翻译列表
     getTranslatesData(1)
     // 启动任务查询
@@ -614,7 +686,7 @@ async function retryTranslate(item) {
   }
 }
 
-// 上传之前   && editionInfo.value != 'community'
+// 上传之前
 function beforeUpload(file) {
   if (!userStore.token) {
     return false
@@ -630,9 +702,9 @@ function beforeUpload(file) {
   }
   upload_load.value = true
 }
+
 // 上传成功
 function uploadSuccess(res, file) {
-  //  console.log('上传成功', file.size)
   if (res.code == 200) {
     const uploadedFile = {
       file_path: res.data.filepath,
@@ -677,6 +749,9 @@ function delUploadFile(file, files) {
     }
   })
 
+  // 停止对该任务的轮询
+  pollingTasks.value.delete(uuid)
+
   // 删除文件
   delFile({ filepath, uuid })
     .then((response) => {
@@ -701,13 +776,6 @@ function delUploadFile(file, files) {
       })
     })
 
-  // 从 result.value 中删除对应的文件
-  for (let key in result.value) {
-    if (result.value[key]['file_name'] === file.name) {
-      delete result.value[key]
-    }
-  }
-
   // 更新 fileListShow 状态
   if (files.length <= 1) {
     fileListShow.value = false
@@ -716,14 +784,9 @@ function delUploadFile(file, files) {
 
 //获取翻译列表数据
 async function getTranslatesData(page, uuid) {
-  //删除翻译中的任务
-  if (uuid) {
-    delete result.value[uuid]
-  }
-  let skip_uuids = Object.keys(result.value)
   isLoadingData.value = true
 
-  await translates({ page, limit: translatesLimit.value, skip_uuids: skip_uuids }).then((data) => {
+  await translates({ page, limit: translatesLimit.value }).then((data) => {
     if (data.code == 200) {
       data.data.data.forEach((item) => {
         //获取文档类型
@@ -739,7 +802,7 @@ async function getTranslatesData(page, uuid) {
       })
       translatesData.value = data.data.data
       translatesTotal.value = data.data.total
-      if (translatesData.value.length > 0 || result.value.length > 0) {
+      if (translatesData.value.length > 0) {
         no_data.value = false
       } else {
         no_data.value = true
@@ -761,7 +824,7 @@ function getStorageInfo() {
       const storage = res.data.used_storage
       const total_storage = res.data.total_storage
       // 更新存储空间
-      userStore.updateStorage({storage,total_storage})
+      userStore.updateStorage({ storage, total_storage })
       storageTotal.value = (res.data.total_storage / (1024 * 1024)).toFixed(2)
       storageUsed.value = res.data.used_storage
       storagePercentage.value = res.data.percentage
@@ -777,6 +840,13 @@ async function delTransFile(id, index) {
       type: 'warning'
     })
     isLoadingData.value = true
+
+    // 获取要删除任务的uuid
+    const taskToDelete = translatesData.value[index]
+    if (taskToDelete) {
+      pollingTasks.value.delete(taskToDelete.uuid)
+    }
+
     translatesData.value.splice(index, 1)
     if (translatesData.value.length < 1) {
       no_data.value = true
@@ -806,6 +876,9 @@ function delAllTransFile() {
     cancelButtonText: '取消',
     type: 'warning'
   }).then(() => {
+    // 清空所有轮询任务
+    pollingTasks.value.clear()
+
     translatesData.value = []
     no_data.value = true
 
@@ -824,7 +897,7 @@ async function downAllTransFile() {
   try {
     const response = await fetch(API_URL + '/api/translate/download/all', {
       headers: {
-        token: `${localStorage.getItem('token')}` // 手动设置 JWT Token
+        token: `${userStore.token}`
       }
     })
 
@@ -849,13 +922,22 @@ async function downAllTransFile() {
     ElMessage.error('文件下载失败，请稍后重试')
   }
 }
+
+// 组件挂载时
 onMounted(() => {
   if (userStore.token) {
     getTranslatesData(1)
     form.value = { ...form.value, ...translateStore.getCurrentServiceForm }
   }
 })
+
+// 组件卸载时清理所有定时器
+onUnmounted(() => {
+  // 清空所有轮询任务
+  pollingTasks.value.clear()
+})
 </script>
+
 <style scoped lang="scss">
 .page-center {
   flex: 1;

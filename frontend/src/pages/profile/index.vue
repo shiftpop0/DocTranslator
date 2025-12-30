@@ -28,29 +28,34 @@
         <!-- 右侧内容区 -->
         <div class="content-card-wrapper">
           <!-- 移动端顶部导航 -->
-          <el-tabs v-model="activeTab" class="mobile-tabs">
-            <el-tab-pane name="basic">
-              <template #label>
-                <span
-                  ><el-icon><User /></el-icon> 基本信息</span
-                >
-              </template>
-            </el-tab-pane>
-            <el-tab-pane name="security">
-              <template #label>
-                <span
-                  ><el-icon><Lock /></el-icon> 账号安全</span
-                >
-              </template>
-            </el-tab-pane>
-            <el-tab-pane name="translation">
-              <template #label>
-                <span
-                  ><el-icon><Setting /></el-icon> 翻译设置</span
-                >
-              </template>
-            </el-tab-pane>
-          </el-tabs>
+          <div class="mobile-tabs-container">
+            <el-tabs v-model="activeTab" class="mobile-tabs">
+              <el-tab-pane name="basic">
+                <template #label>
+                  <div class="tab-label">
+                    <el-icon><User /></el-icon>
+                    <span>基本信息</span>
+                  </div>
+                </template>
+              </el-tab-pane>
+              <el-tab-pane name="security">
+                <template #label>
+                  <div class="tab-label">
+                    <el-icon><Lock /></el-icon>
+                    <span>账号安全</span>
+                  </div>
+                </template>
+              </el-tab-pane>
+              <el-tab-pane name="translation">
+                <template #label>
+                  <div class="tab-label">
+                    <el-icon><Setting /></el-icon>
+                    <span>翻译设置</span>
+                  </div>
+                </template>
+              </el-tab-pane>
+            </el-tabs>
+          </div>
 
           <!-- 用户概览-->
           <el-card v-if="false" class="user-profile-card" shadow="hover">
@@ -115,6 +120,7 @@ import { useRouter } from 'vue-router'
 import { formatTime } from '@/utils/tools'
 import { User, Lock, Setting, Message, Calendar } from '@element-plus/icons-vue'
 import { useUserStore } from '@/store/user'
+import defaultAvatar from '@/assets/avator.png'
 
 import BasicInfo from './components/BasicInfo.vue'
 import SecuritySettings from './components/SecuritySettings.vue'
@@ -152,12 +158,9 @@ const translationSettings = ref({
   origin_lang: ''
 })
 
-// 默认头像
-const defaultAvatar = 'https://cube.elemecdn.com/3/7c/3ea6beec64369c2642b92c6726f1epng.png'
 // 初始化从store获取用户信息
 onMounted(() => {
   userInfo.value = userStore.userInfo
-  // const registerTime=formatDate(userInfo.value.create_at)
 })
 
 // 切换标签页
@@ -176,7 +179,7 @@ const handleUpdateInfo = (newInfo) => {
 
 // 处理修改密码
 const handleChangePassword = () => {
-  router.push('/reset')
+  router.push('/password')
 }
 
 // 处理保存翻译设置
@@ -276,8 +279,68 @@ const handleSaveTranslationSettings = (settings) => {
   flex-direction: column;
   gap: 16px;
 
-  .mobile-tabs {
+  .mobile-tabs-container {
     display: none;
+    // background: white;
+    // border-radius: 12px;
+    // padding: 8px;
+    // box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+    // margin-bottom: 16px;
+  }
+
+  .mobile-tabs {
+    width: 100%;
+
+    :deep(.el-tabs__nav) {
+      width: 100%;
+      display: flex;
+      justify-content: space-around;
+    }
+
+    :deep(.el-tabs__item) {
+      flex: 1;
+      text-align: center;
+      padding: 0 12px;
+      height: 44px;
+      line-height: 44px;
+      font-size: 14px;
+      color: #64748b;
+      transition: all 0.3s ease;
+
+      &.is-active {
+        color: #3b82f6;
+        font-weight: 500;
+      }
+
+      &:hover {
+        color: #3b82f6;
+      }
+    }
+
+    :deep(.el-tabs__active-bar) {
+      background-color: #3b82f6;
+      height: 3px;
+      border-radius: 3px 3px 0 0;
+    }
+
+    :deep(.el-tabs__nav-wrap::after) {
+      display: none;
+    }
+  }
+
+  .tab-label {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+
+    .el-icon {
+      font-size: 16px;
+    }
+
+    span {
+      font-size: 14px;
+    }
   }
 
   .user-profile-card {
@@ -351,9 +414,8 @@ const handleSaveTranslationSettings = (settings) => {
   }
 
   .content-card-wrapper {
-    .mobile-tabs {
+    .mobile-tabs-container {
       display: block;
-      margin-bottom: 16px;
     }
   }
 }
@@ -361,6 +423,25 @@ const handleSaveTranslationSettings = (settings) => {
 @media screen and (max-width: 576px) {
   .scrollable-content-area {
     padding: 8px;
+  }
+
+  .mobile-tabs {
+    :deep(.el-tabs__item) {
+      padding: 0 8px;
+      font-size: 13px;
+
+      .tab-label {
+        gap: 4px;
+
+        .el-icon {
+          font-size: 14px;
+        }
+
+        span {
+          font-size: 13px;
+        }
+      }
+    }
   }
 
   .user-profile-card {

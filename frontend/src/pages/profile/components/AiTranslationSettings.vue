@@ -13,7 +13,7 @@
       <!-- 服务商选择 -->
       <el-form-item label="服务商" prop="provider">
         <el-radio-group v-model="form.provider">
-          <el-radio-button label="openai" :disabled="isVIP">OpenAI格式</el-radio-button>
+          <el-radio-button label="openai" :disabled="isVIP">OpenAI</el-radio-button>
           <el-radio-button label="member" :disabled="!isVIP">DocTranslator 会员</el-radio-button>
         </el-radio-group>
       </el-form-item>

@@ -1,5 +1,4 @@
 <template>
-  <!-- VIP Member Card -->
   <VipCard v-if="isVIP"></VipCard>
   <el-form v-else ref="formRef" :model="form" :rules="rules" label-width="120px" label-position="top">
     <el-form-item label="翻译引擎" prop="provider">

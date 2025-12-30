@@ -1,5 +1,4 @@
 import os
-
 import requests
 import time
 from flask import current_app

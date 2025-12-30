@@ -6,6 +6,7 @@ import zipfile
 from io import BytesIO
 from datetime import datetime
 
+
 class TranslateUtils:
     @staticmethod
     def execute_python_script(script_path: str, args: List[str], timeout: int = 120):

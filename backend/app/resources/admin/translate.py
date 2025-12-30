@@ -3,9 +3,8 @@ import os
 import zipfile
 from datetime import datetime
 from io import BytesIO
-
 from flask import request, make_response, send_file
-from flask_jwt_extended import jwt_required, get_jwt_identity
+from flask_jwt_extended import jwt_required
 from flask_restful import Resource, reqparse
 from app import db
 from app.models import Customer
@@ -30,9 +29,7 @@ class AdminTranslateListResource(Resource):
         args = parser.parse_args()
 
         # 构建查询条件
-        query = Translate.query.filter_by(
-            deleted_flag='N'
-        )
+        query = Translate.query.filter_by()
 
         # 检查状态过滤条件
         if args['status']:
@@ -83,7 +80,8 @@ class AdminTranslateListResource(Resource):
                 'end_at': end_at_str,  # 完成时间
                 'spend_time': spend_time_str,  # 完成用时
                 'lang': t.lang,
-                'target_filepath': t.target_filepath
+                'target_filepath': t.target_filepath,
+            'deleted_flag':t.deleted_flag
             })
 
         # 返回响应数据

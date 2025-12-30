@@ -60,4 +60,3 @@ def baidu_translate(
         raise Exception(f"网络请求失败: {str(e)}")
     except json.JSONDecodeError:
         raise Exception("百度API返回数据解析失败")
-

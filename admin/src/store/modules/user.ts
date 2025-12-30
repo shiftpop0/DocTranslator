@@ -13,7 +13,7 @@ export const useUserStore = defineStore("user", () => {
   const token = ref<string>(getToken() || "")
   const roles = ref<string[]>([])
   const email = ref<string>("")
-
+  
   const tagsViewStore = useTagsViewStore()
   const settingsStore = useSettingsStore()
 

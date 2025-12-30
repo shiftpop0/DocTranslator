@@ -1,8 +1,8 @@
 # resources/account.py
-from flask import request, current_app
+from flask import request
 from flask_restful import Resource
 from flask_jwt_extended import jwt_required, get_jwt_identity
-from datetime import datetime, timedelta
+from datetime import datetime
 from app import db
 from app.models import Customer, SendCode
 from app.utils.security import hash_password, verify_password
@@ -19,7 +19,7 @@ import random
 class ChangePasswordResource(Resource):
     @jwt_required()
     def post(self):
-        """修改密码（旧密码验证）[^1]"""
+        """修改密码（旧密码验证）"""
         user_id = get_jwt_identity()
         data = request.json
 
@@ -54,7 +54,7 @@ class ChangePasswordResource(Resource):
 class SendChangeCodeResource(Resource):
     @jwt_required()
     def post(self):
-        """发送修改密码验证码[^2]"""
+        """发送修改密码验证码"""
         user_id = get_jwt_identity()
         customer = Customer.query.get(user_id)
 
@@ -78,7 +78,7 @@ class SendChangeCodeResource(Resource):
 class EmailChangePasswordResource(Resource):
     @jwt_required()
     def post(self):
-        """通过邮箱验证码修改密码[^3]"""
+        """通过邮箱验证码修改密码"""
         user_id = get_jwt_identity()
         data = request.json
 
@@ -113,7 +113,7 @@ class EmailChangePasswordResource(Resource):
 class StorageInfoResource(Resource):
     @jwt_required()
     def get(self):
-        """获取存储空间信息[^2]"""
+        """获取存储空间信息"""
         user_id = get_jwt_identity()
         customer = Customer.query.get(user_id)
 
@@ -131,7 +131,7 @@ class StorageInfoResource(Resource):
 class UserInfoResource(Resource):
     @jwt_required()
     def get(self):
-        """获取用户基本信息[^5]"""
+        """获取用户基本信息"""
         user_id = get_jwt_identity()
         customer = Customer.query.get(user_id)
 
@@ -139,5 +139,7 @@ class UserInfoResource(Resource):
             'email': customer.email,
             'level': customer.level,
             'created_at': customer.created_at.isoformat(),
-            'storage': customer.storage
+            'storage': customer.storage,
+            'name': customer.name,
+            'total_storage': customer.total_storage
         })

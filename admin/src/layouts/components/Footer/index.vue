@@ -1,6 +1,4 @@
 <script lang="ts" setup>
-const VITE_APP_TITLE = import.meta.env.VITE_APP_TITLE
-
 const openWebsite = () => {
   window.open("https://www.doctranslator.cn/", "_blank")
 }
@@ -8,7 +6,7 @@ const openWebsite = () => {
 
 <template>
   <footer class="layout-footer">
-    <span class="copyright-link" @click="openWebsite"> DocTranslator 1.4.3 ©Powerd by MingChen </span>
+    <span class="copyright-link" @click="openWebsite"> DocTranslator 1.5.0 ©Powerd by MingChen </span>
   </footer>
 </template>
 

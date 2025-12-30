@@ -1,625 +1,1031 @@
-import threading
+# translate/word.py
+"""
+分块策略：
+- 正文按段落为单位
+- 表格按单元格为单位
+- 页眉页脚单独处理
+- 保留图片、图表等非文本元素
+- 保持对齐方式、缩进、行间距等段落格式
+"""
+import datetime
+import logging
+import re
+from typing import List, Dict, Any, Optional
+from dataclasses import dataclass
+from threading import Event
+from copy import deepcopy
 from docx import Document
-from docx.shared import Pt
-from docx.shared import Inches
+from docx.shared import Pt, RGBColor
 from docx.oxml.ns import qn
+from docx.text.paragraph import Paragraph
+from docx.text.run import Run
+from docx.table import Table, _Cell
 from . import to_translate
 from . import common
-import os
-import sys
-import time
-import datetime
-import zipfile
-import xml.etree.ElementTree as ET
-from . import rediscon
+
+# 分块配置
+MAX_CHUNK_SIZE = 2000
 
 
-def start(trans):
-    # 允许的最大线程
-    threads = trans['threads']
-    if threads is None or threads == "" or int(threads) < 0:
-        max_threads = 10
-    else:
-        max_threads = int(threads)
-    # 当前执行的索引位置
-    run_index = 0
-    max_chars = 2000
+@dataclass
+class RunStyle:
+    """Run样式数据"""
+    font_name: Optional[str] = None
+    font_name_east_asia: Optional[str] = None
+    font_size: Optional[Pt] = None
+    font_bold: Optional[bool] = None
+    font_italic: Optional[bool] = None
+    font_underline: Optional[bool] = None
+    font_color_rgb: Optional[RGBColor] = None
+    font_strike: Optional[bool] = None
+
+
+@dataclass
+class ParagraphFormat:
+    """段落格式数据"""
+    alignment: Optional[int] = None
+    left_indent: Optional[int] = None
+    right_indent: Optional[int] = None
+    first_line_indent: Optional[int] = None
+    space_before: Optional[int] = None
+    space_after: Optional[int] = None
+    line_spacing: Optional[float] = None
+    line_spacing_rule: Optional[int] = None
+
+
+@dataclass
+class TextBlock:
+    """文本块"""
+    uid: str
+    block_type: str  # paragraph, table_cell, header, footer
+
+    # 位置
+    paragraph_index: int = -1
+    table_index: int = -1
+    row_index: int = -1
+    col_index: int = -1
+    header_footer_type: str = ""
+    section_index: int = -1
+
+    # 内容
+    original_text: str = ""
+    translated_text: str = ""
+
+    # 样式
+    run_style: Optional[RunStyle] = None
+    para_format: Optional[ParagraphFormat] = None
+
+    # 状态
+    complete: bool = False
+    skip: bool = False
+    count: int = 0
+
+    # 子块信息
+    is_sub: bool = False
+    sub_index: int = 0
+    sub_total: int = 1
+    parent_uid: str = ""
+
+
+def start(trans: Dict[str, Any]) -> bool:
+    """Word文档翻译入口"""
+    translate_id = trans['id']
     start_time = datetime.datetime.now()
-    # 创建Document对象，加载Word文件
+
+    trans_type = trans.get('type', 'trans_only_inherit')
+    only_translation = 'only' in trans_type
+    inherit_format = 'inherit' in trans_type
+
+    logging.info(
+        f"[任务{translate_id}] 翻译模式: only={only_translation}, inherit={inherit_format}")
+
     try:
         document = Document(trans['file_path'])
     except Exception as e:
-        to_translate.error(trans['id'], "无法访问该文档")
+        logging.error(f"[任务{translate_id}] 无法打开文档: {e}")
+        to_translate.error(translate_id, f"无法打开文档: {str(e)}")
         return False
-    texts = []
-    api_url = trans['api_url']
-    trans_type = trans['type']
-    target_lang = trans['lang']
-    if trans_type == "trans_text_only_inherit":
-        # 仅文字-保留原文-继承原版面
-        read_rune_text(document, texts)
-    elif trans_type == "trans_text_only_new" or trans_type == "trans_text_both_new":
-        # 仅文字-保留原文-重排
-        read_paragraph_text(document, texts)
-    elif trans_type == "trans_text_both_inherit":
-        # 仅文字-保留原文-重排/继承原版面
-        read_rune_text(document, texts)
-    elif trans_type == "trans_all_only_new":
-        # 全部内容-仅译文-重排版面
-        read_paragraph_text(document, texts)
-    elif trans_type == "trans_all_only_inherit":
-        # 全部内容-仅译文-重排版面/继承原版面
-        read_rune_text(document, texts)
-    elif trans_type == "trans_all_both_new":
-        # 全部内容-保留原文-重排版面
-        read_paragraph_text(document, texts)
-    elif trans_type == "trans_all_both_inherit":
-        # 全部内容-保留原文-继承原版面
-        read_rune_text(document, texts)
 
-    read_comments_from_docx(trans['file_path'], texts)
-    read_insstd_from_docx(trans['file_path'], texts)
-    # print(texts)
-    max_run = max_threads if len(texts) > max_threads else len(texts)
-    event = threading.Event()
-    before_active_count = threading.activeCount()
-    while run_index <= len(texts) - 1:
-        if threading.activeCount() < max_run + before_active_count:
-            if not event.is_set():
-                thread = threading.Thread(target=to_translate.get,
-                                          args=(trans, event, texts, run_index))
-                thread.start()
-                print(f"开始执行线程{run_index}")
-                run_index += 1
-            else:
-                return False
+    try:
+        text_blocks = _extract_all_text_blocks(document)
+    except Exception as e:
+        logging.error(f"[任务{translate_id}] 提取文本失败: {e}")
+        to_translate.error(translate_id, f"提取文本失败: {str(e)}")
+        return False
 
-    while True:
-        if event.is_set():
-            return False
-        complete = True
-        for text in texts:
-            if not text['complete']:
-                complete = False
-        if complete:
-            break
-        else:
-            time.sleep(1)
-    # print(texts)
-    # print("翻译文本-结束")
-    # exit()
-    text_count = 0
-    if trans_type == "trans_text_only_inherit":
-        # 仅文字-仅译文-继承原版面。
-        write_only_new(document, texts, text_count, True)  # DONE
-    elif trans_type == "trans_text_only_new":
-        # 仅文字-仅译文-重排
-        write_paragraph_text(document, texts, text_count, True)  # DONE
-    elif trans_type == "trans_text_both_new":
-        # 仅文字-保留原文-重排
-        write_both_new(document, texts, text_count, True)  # DONE
-    elif trans_type == "trans_text_both_inherit":
-        # 仅文字-保留原文-继承原版面
-        write_rune_both(document, texts, text_count, True, target_lang)  # DONE
-    elif trans_type == "trans_all_only_new":
-        # 全部内容-仅译文-重排版面
-        write_paragraph_text(document, texts, text_count, False)  # DONE
-    elif trans_type == "trans_all_only_inherit":
-        # 全部内容-仅译文-继承原版面
-        write_only_new(document, texts, text_count, False)  # DONE
-    elif trans_type == "trans_all_both_new":
-        # 全部内容-保留原文-重排版面
-        write_both_new(document, texts, text_count, False)  # DONE
-    elif trans_type == "trans_all_both_inherit":
-        # 全部内容-保留原文-继承原版面
-        write_rune_both(document, texts, text_count, False, target_lang)  # DONE
+    blocks_to_translate = [b for b in text_blocks if not b.skip]
 
-    # print("编辑文档-结束")
-    # print(datetime.datetime.now())
-    docx_path = trans['target_file']
-    document.save(docx_path)
-    # 替换批注数据
-    modify_comment_in_docx(docx_path, texts)
-    modify_inssdt_in_docx(docx_path, texts)
+    if not blocks_to_translate:
+        logging.info(f"[任务{translate_id}] 文档中没有需要翻译的文本")
+        document.save(trans['target_file'])
+        to_translate.complete(trans, 0, "0秒")
+        return True
+
+    logging.info(
+        f"[任务{translate_id}] 共 {len(text_blocks)} 个块，{len(blocks_to_translate)} 个需要翻译")
+
+    texts = _blocks_to_texts(blocks_to_translate)
+
+    event = Event()
+    success = to_translate.translate_batch(trans, texts, event)
+    if not success:
+        return False
+
+    _sync_results(blocks_to_translate, texts)
+
+    try:
+        text_count = _apply_translation(document, text_blocks, only_translation,
+                                        inherit_format, trans.get('lang', '英语'))
+        document.save(trans['target_file'])
+    except Exception as e:
+        logging.error(f"[任务{translate_id}] 保存文档失败: {e}")
+        to_translate.error(translate_id, f"保存文档失败: {str(e)}")
+        return False
+
     end_time = datetime.datetime.now()
     spend_time = common.display_spend(start_time, end_time)
-    if trans['run_complete']:
-        to_translate.complete(trans, text_count, spend_time)
+    to_translate.complete(trans, text_count, spend_time)
     return True
 
 
-def read_paragraph_text(document, texts):
-    for paragraph in document.paragraphs:
-        append_text(paragraph.text, texts)
+# ==================== 文本提取 ====================
 
-    for table in document.tables:
-        for row in table.rows:
-            start_span = 0
-            for cell in row.cells:
-                read_cell_text(cell, texts)
+def _extract_all_text_blocks(document: Document) -> List[TextBlock]:
+    """提取文档中所有文本块"""
+    blocks = []
+    uid_counter = [0]
 
+    def next_uid(prefix: str) -> str:
+        uid_counter[0] += 1
+        return f"{prefix}_{uid_counter[0]}"
 
-def write_paragraph_text(document, texts, text_count, onlyText):
-    for paragraph in document.paragraphs:
-        replace_paragraph_text(paragraph, texts, text_count, onlyText, False)
+    for para_idx, paragraph in enumerate(document.paragraphs):
+        para_blocks = _extract_paragraph_blocks(paragraph, para_idx, next_uid)
+        blocks.extend(para_blocks)
 
-    for table in document.tables:
-        for row in table.rows:
-            for cell in row.cells:
-                write_paragraph_text(cell, texts, text_count, onlyText)
+    for table_idx, table in enumerate(document.tables):
+        table_blocks = _extract_table_blocks(table, table_idx, next_uid)
+        blocks.extend(table_blocks)
 
+    for section_idx, section in enumerate(document.sections):
+        hf_blocks = _extract_header_footer_blocks(section, section_idx, next_uid)
+        blocks.extend(hf_blocks)
 
-def write_both_new(document, texts, text_count, onlyText):
-    for paragraph in document.paragraphs:
-        replace_paragraph_text(paragraph, texts, text_count, onlyText, True)
-
-    for table in document.tables:
-        for row in table.rows:
-            for cell in row.cells:
-                write_both_new(cell, texts, text_count, onlyText)
+    return blocks
 
 
-def read_cell_text(cell, texts):
-    for index, paragraph in enumerate(cell.paragraphs):
-        append_text(paragraph.text, texts)
+def _extract_paragraph_blocks(paragraph: Paragraph, para_idx: int, next_uid) -> List[TextBlock]:
+    """提取段落文本块"""
+    blocks = []
 
+    text = _get_paragraph_text(paragraph)
 
-def write_cell_text(cell, texts):
-    for index, paragraph in enumerate(cell.paragraphs):
-        if check_text(paragraph.text) and len(texts) > 0:
-            item = texts.pop(0)
-            # paragraph.runs[0].text=item.get('text',"")
-            for index, run in enumerate(paragraph.runs):
-                if index == 0:
-                    run.text = item.get('text', "")
-                else:
-                    run.clear()
+    if not text or not text.strip():
+        return blocks
 
+    # 提取段落格式
+    para_format = _extract_paragraph_format(paragraph)
 
-def read_rune_text(document, texts):
-    for paragraph in document.paragraphs:
-        line_spacing = paragraph.paragraph_format.line_spacing
-        # print("line_spacing:",line_spacing)
-        read_run(paragraph.runs, texts)
-        # print(line_spacing_unit)
-        if len(paragraph.hyperlinks) > 0:
-            for hyperlink in paragraph.hyperlinks:
-                read_run(hyperlink.runs, texts)
+    if not _should_translate(text):
+        block = TextBlock(
+            uid=next_uid("para"),
+            block_type="paragraph",
+            paragraph_index=para_idx,
+            original_text=text,
+            para_format=para_format,
+            skip=True
+        )
+        blocks.append(block)
+        return blocks
 
-    # print("翻译文本--开始")
-    # print(datetime.datetime.now())
-    for table in document.tables:
-        for row in table.rows:
-            start_span = 0
-            for cell in row.cells:
-                read_cell_text(cell, texts)
-                # start_span+=1
-                # # if start_span==cell.grid_span:
-                # #     start_span=0
-                #     # read_cell(cell, texts)
-                # for index,paragraph in enumerate(cell.paragraphs):
+    run_style = _extract_first_run_style(paragraph)
 
-                #     read_run(paragraph.runs, texts)
-
-                #     if len(paragraph.hyperlinks)>0:
-                #         for hyperlink in paragraph.hyperlinks:
-                #             read_run(hyperlink.runs, texts)
-
-
-def write_only_new(document, texts, text_count, onlyText):
-    for paragraph in document.paragraphs:
-        text_count += write_run(paragraph.runs, texts)
-
-        if len(paragraph.hyperlinks) > 0:
-            for hyperlink in paragraph.hyperlinks:
-                text_count += write_run(hyperlink.runs, texts)
-
-        if onlyText:
-            clear_image(paragraph)
-
-    for table in document.tables:
-        for row in table.rows:
-            start_span = 0
-            for cell in row.cells:
-                write_cell_text(cell, texts)
-                # start_span+=1
-                # if start_span==cell.grid_span:
-                #     start_span=0
-                # text_count+=write_cell(cell, texts)
-                # for paragraph in cell.paragraphs:
-                #     text_count+=write_run(paragraph.runs, texts)
-
-                #     if len(paragraph.hyperlinks)>0:
-                #         for hyperlink in paragraph.hyperlinks:
-                #             text_count+=write_run(hyperlink.runs, texts)
-
-
-# 保留原译文
-def write_rune_both(document, texts, text_count, onlyText, target_lang):
-    for paragraph in document.paragraphs:
-        # print(paragraph.text)
-        if (len(paragraph.runs) > 0):
-            paragraph.runs[-1].add_break()
-            add_paragraph_run(paragraph, paragraph.runs, texts, text_count, target_lang)
-        if len(paragraph.hyperlinks) > 0:
-            for hyperlink in paragraph.hyperlinks:
-                hyperlink.runs[-1].add_break()
-                add_paragraph_run(paragraph, hyperlink.runs, texts, text_count, target_lang)
-        if onlyText:
-            clear_image(paragraph)
-
-        # text_count+=write_run(paragraph.runs, texts)
-    for table in document.tables:
-        for row in table.rows:
-            # start_span=0
-            for cell in row.cells:
-                # start_span+=1
-                # if start_span==cell.grid_span:
-                #     start_span=0
-                # text_count+=write_cell(cell, texts)
-                for paragraph in cell.paragraphs:
-                    replace_paragraph_text(paragraph, texts, text_count, onlyText, True)
-
-                    if len(paragraph.hyperlinks) > 0:
-                        for hyperlink in paragraph.hyperlinks:
-                            replace_paragraph_text(hyperlink, texts, text_count, onlyText, True)
-
-
-def read_run(runs, texts):
-    # text=""
-    if len(runs) > 0 or len(texts) == 0:
-        for index, run in enumerate(runs):
-            append_text(run.text, texts)
-        #     if run.text=="":
-        #         if len(text)>0 and not common.is_all_punc(text):
-        #             texts.append({"text":text, "complete":False})
-        #             text=""
-        #     else:
-        #         text+=run.text
-        # if len(text)>0 and not common.is_all_punc(text):
-        #     texts.append({"text":text, "complete":False})
-
-
-def append_text(text, texts):
-    if check_text(text):
-        # print(text)
-        texts.append({"text": text, "type": "text", "complete": False})
-
-
-def append_comment(text, comment_id, texts):
-    if check_text(text):
-        texts.append({"text": text, "type": "comment", "comment_id": comment_id, "complete": False})
-
-
-def check_text(text):
-    return text != None and len(text) > 0 and not common.is_all_punc(text)
-
-
-def write_run(runs, texts):
-    text_count = 0
-    if len(runs) == 0:
-        return text_count
-    text = ""
-    for index, run in enumerate(runs):
-        text = run.text
-        if check_text(text) and len(texts) > 0:
-            item = texts.pop(0)
-            text_count += item.get('count', 0)
-            run.text = item.get('text', "")
-
-        # if run.text=="":
-        #     if len(text)>0 and not common.is_all_punc(text) and len(texts)>0:
-        #         item=texts.pop(0)
-        #         text_count+=item.get('count',0)
-        #         runs[index-1].text=item.get('text',"")
-        #         text=""
-        # else:
-        #     text+=run.text
-        #     run.text=""
-    # if len(text)>0 and not common.is_all_punc(text) and len(texts)>0:
-    #     item=texts.pop(0)
-    #     text_count+=item.get('count',0)
-    #     runs[0].text=item.get('text',"")
-    return text_count
-
-
-def read_cell(cell, texts):
-    append_text(cell.text, texts)
-
-
-def write_cell(cell, texts):
-    text = cell.text
-    text_count = 0
-    if check_text(text) and len(texts) > 0:
-        item = texts.pop(0)
-        text_count += item.get('count', 0)
-        cell.text = item.get('text', "")
-    return text_count
-
-
-def add_paragraph_run(paragraph, runs, texts, text_count, target_lang):
-    for index, run in enumerate(runs):
-        if check_text(run.text) and len(texts) > 0:
-            item = texts.pop(0)
-            text_count += item.get('count', 0)
-            new_run = paragraph.add_run(item.get('text', ""), run.style)
-            set_run_style(new_run, run, target_lang)
-    set_paragraph_linespace(paragraph)
-
-
-def set_run_style(new_run, copy_run, target_lang):
-    new_run.font.italic = copy_run.font.italic
-    new_run.font.strike = copy_run.font.strike
-    new_run.font.bold = copy_run.font.bold
-    new_run.font.size = copy_run.font.size
-    new_run.font.color.rgb = copy_run.font.color.rgb
-    new_run.underline = copy_run.underline
-    new_run.style = copy_run.style
-
-    # 字体名称设置需要特殊处理
-    if target_lang == '中文' or target_lang == '日语':
-        new_run.font.name = '微软雅黑'
-        r = new_run._element.rPr.rFonts
-        r.set(qn('w:eastAsia'), '微软雅黑')
+    if len(text) <= MAX_CHUNK_SIZE:
+        block = TextBlock(
+            uid=next_uid("para"),
+            block_type="paragraph",
+            paragraph_index=para_idx,
+            original_text=text,
+            run_style=run_style,
+            para_format=para_format
+        )
+        blocks.append(block)
     else:
-        new_run.font.name = 'Times New Roman'
-        r = new_run._element.rPr.rFonts
-        r.set(qn('w:eastAsia'), 'Times New Roman')
+        sub_texts = _split_by_sentences(text, MAX_CHUNK_SIZE)
+        parent_uid = next_uid("para_parent")
+        for i, sub_text in enumerate(sub_texts):
+            block = TextBlock(
+                uid=next_uid("para_sub"),
+                block_type="paragraph",
+                paragraph_index=para_idx,
+                original_text=sub_text,
+                run_style=run_style,
+                para_format=para_format,
+                is_sub=True,
+                sub_index=i,
+                sub_total=len(sub_texts),
+                parent_uid=parent_uid
+            )
+            blocks.append(block)
+
+    return blocks
 
 
-def set_paragraph_linespace(paragraph):
-    if hasattr(paragraph, "paragraph_format"):
-        space_before = paragraph.paragraph_format.space_before
-        space_after = paragraph.paragraph_format.space_after
-        line_spacing = paragraph.paragraph_format.line_spacing
-        line_spacing_rule = paragraph.paragraph_format.line_spacing_rule
-        if space_before != None:
-            paragraph.paragraph_format.space_before = space_before
-        if space_after != None:
-            paragraph.paragraph_format.space_after = space_after
-        if line_spacing != None:
-            paragraph.paragraph_format.line_spacing = line_spacing
-        if line_spacing_rule != None:
-            paragraph.paragraph_format.line_spacing_rule = line_spacing_rule
+def _extract_table_blocks(table: Table, table_idx: int, next_uid) -> List[TextBlock]:
+    """提取表格文本块"""
+    blocks = []
+    processed_cells = set()
+
+    for row_idx, row in enumerate(table.rows):
+        for col_idx, cell in enumerate(row.cells):
+            cell_id = id(cell._tc)
+            if cell_id in processed_cells:
+                continue
+            processed_cells.add(cell_id)
+
+            text = _get_cell_text(cell)
+
+            if not text or not text.strip():
+                continue
+
+            # 提取单元格第一段落的格式
+            para_format = None
+            if cell.paragraphs:
+                para_format = _extract_paragraph_format(cell.paragraphs[0])
+
+            if not _should_translate(text):
+                block = TextBlock(
+                    uid=next_uid("cell"),
+                    block_type="table_cell",
+                    table_index=table_idx,
+                    row_index=row_idx,
+                    col_index=col_idx,
+                    original_text=text,
+                    para_format=para_format,
+                    skip=True
+                )
+                blocks.append(block)
+                continue
+
+            run_style = _extract_cell_first_run_style(cell)
+
+            if len(text) <= MAX_CHUNK_SIZE:
+                block = TextBlock(
+                    uid=next_uid("cell"),
+                    block_type="table_cell",
+                    table_index=table_idx,
+                    row_index=row_idx,
+                    col_index=col_idx,
+                    original_text=text,
+                    run_style=run_style,
+                    para_format=para_format
+                )
+                blocks.append(block)
+            else:
+                sub_texts = _split_by_sentences(text, MAX_CHUNK_SIZE)
+                parent_uid = next_uid("cell_parent")
+                for i, sub_text in enumerate(sub_texts):
+                    block = TextBlock(
+                        uid=next_uid("cell_sub"),
+                        block_type="table_cell",
+                        table_index=table_idx,
+                        row_index=row_idx,
+                        col_index=col_idx,
+                        original_text=sub_text,
+                        run_style=run_style,
+                        para_format=para_format,
+                        is_sub=True,
+                        sub_index=i,
+                        sub_total=len(sub_texts),
+                        parent_uid=parent_uid
+                    )
+                    blocks.append(block)
+
+    return blocks
 
 
-def check_image(run):
-    if run.element.find('.//w:drawing', namespaces=run.element.nsmap) is not None:
-        return True
+def _extract_header_footer_blocks(section, section_idx: int, next_uid) -> List[TextBlock]:
+    """提取页眉页脚文本块"""
+    blocks = []
+
+    hf_types = [
+        ('header', section.header),
+        ('footer', section.footer),
+        ('first_header', section.first_page_header),
+        ('first_footer', section.first_page_footer),
+    ]
+
+    for hf_type, hf in hf_types:
+        if hf is None:
+            continue
+        try:
+            if hf.is_linked_to_previous:
+                continue
+        except:
+            pass
+
+        try:
+            for para_idx, paragraph in enumerate(hf.paragraphs):
+                text = _get_paragraph_text(paragraph)
+                if text and text.strip() and _should_translate(text):
+                    run_style = _extract_first_run_style(paragraph)
+                    para_format = _extract_paragraph_format(paragraph)
+                    block = TextBlock(
+                        uid=next_uid(f"hf_{hf_type}"),
+                        block_type="header_footer",
+                        header_footer_type=hf_type,
+                        section_index=section_idx,
+                        paragraph_index=para_idx,
+                        original_text=text,
+                        run_style=run_style,
+                        para_format=para_format
+                    )
+                    blocks.append(block)
+        except Exception as e:
+            logging.warning(f"提取页眉页脚失败: {e}")
+
+    return blocks
+
+
+def _extract_paragraph_format(paragraph: Paragraph) -> ParagraphFormat:
+    """提取段落格式"""
+    fmt = ParagraphFormat()
+
+    try:
+        pf = paragraph.paragraph_format
+
+        # 对齐方式
+        fmt.alignment = paragraph.alignment
+
+        # 缩进
+        fmt.left_indent = pf.left_indent
+        fmt.right_indent = pf.right_indent
+        fmt.first_line_indent = pf.first_line_indent
+
+        # 段前段后间距
+        fmt.space_before = pf.space_before
+        fmt.space_after = pf.space_after
+
+        # 行间距
+        fmt.line_spacing = pf.line_spacing
+        fmt.line_spacing_rule = pf.line_spacing_rule
+
+    except Exception as e:
+        logging.warning(f"提取段落格式失败: {e}")
+
+    return fmt
+
+
+def _get_paragraph_text(paragraph: Paragraph) -> str:
+    """获取段落文本"""
+    texts = []
+    for run in paragraph.runs:
+        if _run_has_image(run):
+            continue
+        if run.text:
+            texts.append(run.text)
+    return ''.join(texts)
+
+
+def _get_cell_text(cell: _Cell) -> str:
+    """获取单元格文本"""
+    texts = []
+    for paragraph in cell.paragraphs:
+        para_text = _get_paragraph_text(paragraph)
+        if para_text:
+            texts.append(para_text)
+    return '\n'.join(texts)
+
+
+def _run_has_image(run: Run) -> bool:
+    """检查run是否包含图片"""
+    try:
+        drawings = run._element.findall('.//' + qn('w:drawing'))
+        if drawings:
+            return True
+        picts = run._element.findall('.//' + qn('w:pict'))
+        if picts:
+            return True
+    except:
+        pass
     return False
 
 
-# 去除照片
-def clear_image(paragraph):
+def _extract_first_run_style(paragraph: Paragraph) -> Optional[RunStyle]:
+    """提取段落第一个有效run的样式"""
     for run in paragraph.runs:
-        if check_image(run):
-            run.clear()
+        if run.text and run.text.strip():
+            return _extract_run_style(run)
+    return None
 
 
-def replace_paragraph_text(paragraph, texts, text_count, onlyText, appendTo):
-    text = paragraph.text
-    if check_text(text) and len(texts) > 0:
-        item = texts.pop(0)
-        trans_text = item.get('text', "")
-        if appendTo:
-            if len(paragraph.runs) > 0:
-                paragraph.runs[-1].add_break()
-                paragraph.runs[-1].add_text(trans_text)
-            elif len(paragraph.hyperlinks) > 0:
-                paragraph.hyperlinks[-1].runs[-1].add_break()
-                paragraph.hyperlinks[-1].runs[-1].add_text(trans_text)
+def _extract_cell_first_run_style(cell: _Cell) -> Optional[RunStyle]:
+    """提取单元格第一个有效run的样式"""
+    for paragraph in cell.paragraphs:
+        style = _extract_first_run_style(paragraph)
+        if style:
+            return style
+    return None
+
+
+def _extract_run_style(run: Run) -> RunStyle:
+    """提取run的样式"""
+    style = RunStyle()
+
+    try:
+        font = run.font
+        style.font_name = font.name
+        style.font_size = font.size
+        style.font_bold = font.bold
+        style.font_italic = font.italic
+        style.font_underline = font.underline
+        style.font_strike = font.strike
+
+        try:
+            rPr = run._element.rPr
+            if rPr is not None:
+                rFonts = rPr.rFonts
+                if rFonts is not None:
+                    style.font_name_east_asia = rFonts.get(qn('w:eastAsia'))
+        except:
+            pass
+
+        try:
+            if font.color and font.color.rgb:
+                style.font_color_rgb = font.color.rgb
+        except:
+            pass
+
+    except Exception as e:
+        logging.warning(f"提取run样式失败: {e}")
+
+    return style
+
+
+def _should_translate(text: str) -> bool:
+    """判断文本是否需要翻译"""
+    if not text or not text.strip():
+        return False
+
+    text = text.strip()
+
+    if common.is_all_punc(text):
+        return False
+
+    if re.match(r'^[\d\s\.\-\+\*\/\=\%\(\)\[\]\{\}]+$', text):
+        return False
+
+    if re.match(r'^(第\s*\d+\s*页|Page\s+\d+|\d+\s*/\s*\d+)$', text, re.IGNORECASE):
+        return False
+
+    if len(text) < 2:
+        return False
+
+    return True
+
+
+def _split_by_sentences(text: str, max_size: int) -> List[str]:
+    """按句子边界切分长文本"""
+    sentence_endings = r'([.!?。！？；;]\s*)'
+
+    parts = re.split(sentence_endings, text)
+
+    sentences = []
+    i = 0
+    while i < len(parts):
+        sentence = parts[i]
+        if i + 1 < len(parts) and re.match(sentence_endings, parts[i + 1]):
+            sentence += parts[i + 1]
+            i += 2
         else:
-            replaced = False
-            if len(paragraph.runs) > 0:
-                for index, run in enumerate(paragraph.runs):
-                    if not check_image(run):
-                        if not replaced:
-                            run.text = trans_text
-                            replaced = True
-                        else:
-                            run.clear()
-            elif len(paragraph.hyperlinks) > 0:
-                for hyperlink in paragraph.hyperlinks:
-                    for index, run in enumerate(hyperlink.runs):
-                        if not check_image(run):
-                            if not replaced:
-                                run.text = trans_text
-                                replaced = True
-                            else:
-                                run.clear()
+            i += 1
+        if sentence.strip():
+            sentences.append(sentence)
 
-        text_count += item.get('count', 0)
-        set_paragraph_linespace(paragraph)
-    if onlyText:
-        clear_image(paragraph)
+    chunks = []
+    current = ""
 
+    for sentence in sentences:
+        if len(sentence) > max_size:
+            if current:
+                chunks.append(current)
+                current = ""
+            for j in range(0, len(sentence), max_size):
+                chunks.append(sentence[j:j + max_size])
+            continue
 
-def read_comments_from_docx(docx_path, texts):
-    comments = []
-    with zipfile.ZipFile(docx_path, 'r') as docx:
-        # 尝试读取批注文件
-        if 'word/comments.xml' in docx.namelist():
-            with docx.open('word/comments.xml') as comments_file:
-                # 解析 XML
-                tree = ET.parse(comments_file)
-                root = tree.getroot()
+        if len(current) + len(sentence) <= max_size:
+            current += sentence
+        else:
+            if current:
+                chunks.append(current)
+            current = sentence
 
-                # 定义命名空间
-                namespace = {'ns0': 'http://schemas.openxmlformats.org/wordprocessingml/2006/main'}
+    if current:
+        chunks.append(current)
 
-                # 查找所有批注
-                for comment in root.findall('ns0:comment', namespace):
-                    comment_id = comment.get(
-                        '{http://schemas.openxmlformats.org/wordprocessingml/2006/main}id')
-                    author = comment.get(
-                        '{http://schemas.openxmlformats.org/wordprocessingml/2006/main}author')
-                    date = comment.get(
-                        '{http://schemas.openxmlformats.org/wordprocessingml/2006/main}date')
-                    text = ''.join(t.text for p in comment.findall('.//ns0:p', namespace) for r in
-                                   p.findall('.//ns0:r', namespace) for t in
-                                   r.findall('.//ns0:t', namespace))
-                    append_comment(text, comment_id, texts)
+    return chunks if chunks else [text]
 
 
-def modify_comment_in_docx(docx_path, texts):
-    # 创建一个临时文件名，保留原始路径
-    temp_docx_path = os.path.join(os.path.dirname(docx_path), 'temp_' + os.path.basename(docx_path))
+# ==================== 翻译接口 ====================
 
-    # 打开原始 docx 文件
-    with zipfile.ZipFile(docx_path, 'r') as docx:
-        # 创建一个新的 docx 文件
-        with zipfile.ZipFile(temp_docx_path, 'w') as new_docx:
-            for item in docx.infolist():
-                # 读取每个文件
-                with docx.open(item) as file:
-                    if item.filename == 'word/comments.xml':
-                        # 解析批注 XML
-                        tree = ET.parse(file)
-                        root = tree.getroot()
+def _blocks_to_texts(blocks: List[TextBlock]) -> List[Dict]:
+    """将TextBlock列表转换为翻译接口格式"""
+    return [{
+        'text': b.original_text,
+        'original': b.original_text,
+        'complete': False,
+        'count': 0,
+        '_block_uid': b.uid
+    } for b in blocks]
 
-                        # 定义命名空间
-                        namespace = {
-                            'ns0': 'http://schemas.openxmlformats.org/wordprocessingml/2006/main'}
 
-                        # 查找并修改批注
-                        for comment in root.findall('ns0:comment', namespace):
-                            text = ''.join(
-                                t.text for p in comment.findall('.//ns0:p', namespace) for r in
-                                p.findall('.//ns0:r', namespace) for t in
-                                r.findall('.//ns0:t', namespace))
-                            if check_text(text):
-                                for newitem in texts:
-                                    # text_count+=newitem.get('count',0)
-                                    new_text = newitem.get('text', "")
-                                    comment_id = newitem.get('comment_id', "")
-                                    # print("new_text:",new_text)
-                                    # print("comment_id:",comment_id)
-                                    # print("origin_id:",comment.get('{http://schemas.openxmlformats.org/wordprocessingml/2006/main}id'))
-                                    if comment.get(
-                                            '{http://schemas.openxmlformats.org/wordprocessingml/2006/main}id') == comment_id:
+def _sync_results(blocks: List[TextBlock], texts: List[Dict]):
+    """同步翻译结果到TextBlock"""
+    block_map = {b.uid: b for b in blocks}
 
-                                        # 清除现有段落
-                                        for p in comment.findall('.//ns0:t', namespace):
-                                            # 删除 ns0:t 元素
-                                            # comment.remove(p)  # 删除 ns0:t 元素
+    for text_item in texts:
+        uid = text_item.get('_block_uid')
+        if uid and uid in block_map:
+            block = block_map[uid]
+            block.translated_text = text_item.get('text', block.original_text)
+            block.complete = text_item.get('complete', False)
+            block.count = text_item.get('count', 0)
 
-                                            # # 创建新的 ns0:t 元素
-                                            # new_text_elem = ET.Element('{http://schemas.openxmlformats.org/wordprocessingml/2006/main}t')
-                                            # new_text_elem.text = new_text  # 设置新的文本内容
 
-                                            # # 将新的 ns0:t 元素添加到段落中
-                                            # r = ET.Element('{http://schemas.openxmlformats.org/wordprocessingml/2006/main}r')  # 创建新的 run 元素
-                                            # r.append(new_text_elem)  # 将新的 ns0:t 添加到 run 中
-                                            # p.append(r)  # 将 run 添加到段落中
-                                            p.text = new_text
-                        # 打印修改后的 XML 内容
-                        modified_xml = ET.tostring(root, encoding='utf-8',
-                                                   xml_declaration=True).decode('utf-8')
-                        # print(modified_xml)
-                        # 将修改后的 XML 写入新的 docx 文件
-                        new_docx.writestr(item.filename, modified_xml)
+# ==================== 应用翻译 ====================
+
+def _apply_translation(document: Document, all_blocks: List[TextBlock],
+                       only_translation: bool, inherit_format: bool,
+                       target_lang: str) -> int:
+    """应用翻译结果到文档"""
+    text_count = 0
+
+    para_blocks = _organize_paragraph_blocks(all_blocks)
+    table_blocks = _organize_table_blocks(all_blocks)
+    hf_blocks = _organize_header_footer_blocks(all_blocks)
+
+    for para_idx, paragraph in enumerate(document.paragraphs):
+        if para_idx in para_blocks:
+            blocks = para_blocks[para_idx]
+            count = _apply_to_paragraph(paragraph, blocks, only_translation,
+                                        inherit_format, target_lang)
+            text_count += count
+
+    for table_idx, table in enumerate(document.tables):
+        processed_cells = set()
+        for row_idx, row in enumerate(table.rows):
+            for col_idx, cell in enumerate(row.cells):
+                cell_id = id(cell._tc)
+                if cell_id in processed_cells:
+                    continue
+                processed_cells.add(cell_id)
+
+                key = (table_idx, row_idx, col_idx)
+                if key in table_blocks:
+                    blocks = table_blocks[key]
+                    count = _apply_to_cell(cell, blocks, only_translation,
+                                           inherit_format, target_lang)
+                    text_count += count
+
+    for section_idx, section in enumerate(document.sections):
+        _apply_to_header_footer(section, section_idx, hf_blocks,
+                                only_translation, inherit_format, target_lang)
+
+    return text_count
+
+
+def _organize_paragraph_blocks(blocks: List[TextBlock]) -> Dict[int, List[TextBlock]]:
+    """按段落索引组织块"""
+    result = {}
+    for b in blocks:
+        if b.block_type == "paragraph":
+            if b.paragraph_index not in result:
+                result[b.paragraph_index] = []
+            result[b.paragraph_index].append(b)
+
+    for idx in result:
+        result[idx].sort(key=lambda x: x.sub_index)
+
+    return result
+
+
+def _organize_table_blocks(blocks: List[TextBlock]) -> Dict[tuple, List[TextBlock]]:
+    """按表格位置组织块"""
+    result = {}
+    for b in blocks:
+        if b.block_type == "table_cell":
+            key = (b.table_index, b.row_index, b.col_index)
+            if key not in result:
+                result[key] = []
+            result[key].append(b)
+
+    for key in result:
+        result[key].sort(key=lambda x: x.sub_index)
+
+    return result
+
+
+def _organize_header_footer_blocks(blocks: List[TextBlock]) -> Dict[tuple, List[TextBlock]]:
+    """按页眉页脚组织块"""
+    result = {}
+    for b in blocks:
+        if b.block_type == "header_footer":
+            key = (b.section_index, b.header_footer_type, b.paragraph_index)
+            if key not in result:
+                result[key] = []
+            result[key].append(b)
+
+    return result
+
+
+def _apply_to_paragraph(paragraph: Paragraph, blocks: List[TextBlock],
+                        only_translation: bool, inherit_format: bool,
+                        target_lang: str) -> int:
+    """应用翻译到段落"""
+    text_count = sum(b.count for b in blocks)
+
+    # 合并子块
+    if any(b.is_sub for b in blocks):
+        original = ''.join(b.original_text for b in blocks)
+        translated = ''.join(b.translated_text or b.original_text for b in blocks)
+    else:
+        original = blocks[0].original_text
+        translated = blocks[0].translated_text or original
+
+    if blocks[0].skip:
+        return 0
+
+    run_style = blocks[0].run_style
+    para_format = blocks[0].para_format
+
+    if only_translation:
+        _replace_paragraph_text(paragraph, translated, run_style, para_format,
+                                inherit_format, target_lang, len(original))
+    else:
+        _append_translation_to_paragraph(paragraph, translated, run_style, para_format,
+                                         inherit_format, target_lang)
+
+    return text_count
+
+
+def _apply_to_cell(cell: _Cell, blocks: List[TextBlock],
+                   only_translation: bool, inherit_format: bool,
+                   target_lang: str) -> int:
+    """应用翻译到单元格"""
+    text_count = sum(b.count for b in blocks)
+
+    if any(b.is_sub for b in blocks):
+        original = ''.join(b.original_text for b in blocks)
+        translated = ''.join(b.translated_text or b.original_text for b in blocks)
+    else:
+        original = blocks[0].original_text
+        translated = blocks[0].translated_text or original
+
+    if blocks[0].skip:
+        return 0
+
+    run_style = blocks[0].run_style
+    para_format = blocks[0].para_format
+
+    if only_translation:
+        _replace_cell_text(cell, translated, run_style, para_format,
+                           inherit_format, target_lang, len(original))
+    else:
+        _append_translation_to_cell(cell, translated, run_style, para_format,
+                                    inherit_format, target_lang)
+
+    return text_count
+
+
+def _apply_to_header_footer(section, section_idx: int,
+                            hf_blocks: Dict[tuple, List[TextBlock]],
+                            only_translation: bool, inherit_format: bool,
+                            target_lang: str):
+    """应用翻译到页眉页脚"""
+    hf_map = {
+        'header': section.header,
+        'footer': section.footer,
+        'first_header': section.first_page_header,
+        'first_footer': section.first_page_footer,
+    }
+
+    for hf_type, hf in hf_map.items():
+        if hf is None:
+            continue
+        try:
+            for para_idx, paragraph in enumerate(hf.paragraphs):
+                key = (section_idx, hf_type, para_idx)
+                if key in hf_blocks:
+                    blocks = hf_blocks[key]
+                    translated = blocks[0].translated_text or blocks[0].original_text
+                    original_len = len(blocks[0].original_text)
+
+                    if only_translation:
+                        _replace_paragraph_text(paragraph, translated,
+                                                blocks[0].run_style, blocks[0].para_format,
+                                                inherit_format, target_lang, original_len)
                     else:
-                        # 其他文件直接写入新的 docx 文件
-                        new_docx.writestr(item.filename, file.read())
-
-    # print(temp_docx_path)
-    # 替换原始文件
-    os.replace(temp_docx_path, docx_path)
-
-
-def append_ins(text, ins_id, texts):
-    if check_text(text):
-        texts.append({"text": text, "type": "ins", "ins_id": ins_id, "complete": False})
+                        _append_translation_to_paragraph(paragraph, translated,
+                                                         blocks[0].run_style, blocks[0].para_format,
+                                                         inherit_format, target_lang)
+        except Exception as e:
+            logging.warning(f"处理页眉页脚失败: {e}")
 
 
-def read_insstd_from_docx(docx_path, texts):
-    document_ins = []
-    namespace = '{http://schemas.openxmlformats.org/wordprocessingml/2006/main}'
-    namespace14 = '{http://schemas.microsoft.com/office/word/2010/wordml}'
-    with zipfile.ZipFile(docx_path, 'r') as docx:
-        # 尝试读取批注文件
-        if 'word/document.xml' in docx.namelist():
-            with docx.open('word/document.xml') as document_file:
-                # 解析 XML
-                tree = ET.parse(document_file)
-                root = tree.getroot()
-                for element in root.findall(namespace + 'body'):
-                    for p in element.findall(namespace + 'p'):
-                        for ins in p.findall(namespace + 'ins'):
-                            ins_id = ins.get(namespace + 'id')
-                            for r in ins.findall(namespace + 'r'):
-                                for t in r.findall(namespace + 't'):
-                                    append_ins(t.text, ins_id, texts)
-                    for sdt in element.findall(namespace + 'sdt'):
-                        for sdtContent in sdt.findall(namespace + 'sdtContent'):
-                            for p in sdtContent.findall(namespace + 'p'):
-                                sdt_id = p.get(namespace14 + 'paraId')
-                                for r in p.findall(namespace + 'r'):
-                                    for t in r.findall(namespace + 't'):
-                                        append_sdt(t.text, sdt_id, texts)
-                                for ins in p.findall(namespace + 'ins'):
-                                    for r in ins.findall(namespace + 'r'):
-                                        for t in r.findall(namespace + 't'):
-                                            append_sdt(t.text, sdt_id, texts)
+def _replace_paragraph_text(paragraph: Paragraph, new_text: str,
+                            run_style: Optional[RunStyle],
+                            para_format: Optional[ParagraphFormat],
+                            inherit_format: bool, target_lang: str,
+                            original_len: int):
+    """替换段落文本（仅译文模式）"""
+
+    # 保存图片元素
+    image_elements = []
+    for run in paragraph.runs:
+        if _run_has_image(run):
+            image_elements.append(deepcopy(run._element))
+
+    if inherit_format and paragraph.runs:
+        # 继承格式：只替换文本内容
+        for run in paragraph.runs:
+            if not _run_has_image(run):
+                run.text = ""
+
+        # 在第一个非图片run中设置译文
+        first_text_run = None
+        for run in paragraph.runs:
+            if not _run_has_image(run):
+                first_text_run = run
+                break
+
+        if first_text_run:
+            first_text_run.text = new_text
+            _adjust_font_size_for_run(first_text_run, run_style, len(new_text), original_len)
+        else:
+            # 没有文本run，创建新的
+            new_run = paragraph.add_run(new_text)
+            _apply_run_style(new_run, run_style, target_lang, len(new_text), original_len)
+    else:
+        # 重排格式：清空后重建
+        paragraph.clear()
+
+        # 添加译文
+        new_run = paragraph.add_run(new_text)
+        _apply_run_style(new_run, run_style, target_lang, len(new_text), original_len)
+
+        # 恢复图片
+        for img_elem in image_elements:
+            paragraph._p.append(img_elem)
+
+    # 恢复段落格式
+    _apply_paragraph_format(paragraph, para_format)
 
 
-def append_sdt(text, sdt_id, texts):
-    if check_text(text):
-        texts.append({"text": text, "type": "sdt", "sdt_id": sdt_id, "complete": False})
+def _append_translation_to_paragraph(paragraph: Paragraph, translated: str,
+                                     run_style: Optional[RunStyle],
+                                     para_format: Optional[ParagraphFormat],
+                                     inherit_format: bool, target_lang: str):
+    """在段落末尾添加译文（原文+译文模式）"""
+
+    # 找到最后一个非图片run
+    last_text_run = None
+    for run in reversed(paragraph.runs):
+        if not _run_has_image(run):
+            last_text_run = run
+            break
+
+    if last_text_run is None:
+        if paragraph.runs:
+            last_text_run = paragraph.runs[-1]
+        else:
+            # 空段落，直接添加
+            new_run = paragraph.add_run(translated)
+            _apply_run_style(new_run, run_style, target_lang, len(translated), 0)
+            _apply_paragraph_format(paragraph, para_format)
+            return
+
+    # 添加换行
+    last_text_run.add_break()
+
+    # 添加译文run
+    new_run = paragraph.add_run(translated)
+
+    if inherit_format and run_style:
+        _apply_run_style(new_run, run_style, target_lang, len(translated), 0)
+    else:
+        _apply_run_style(new_run, run_style, target_lang, len(translated), 0)
+
+    # 确保段落格式保持
+    _apply_paragraph_format(paragraph, para_format)
 
 
-def modify_inssdt_in_docx(docx_path, texts):
-    print(texts, docx_path)
-    temp_docx_path = os.path.join(os.path.dirname(docx_path),
-                                  'temp_std_' + os.path.basename(docx_path))
-    with zipfile.ZipFile(docx_path, 'r') as docx:
-        with zipfile.ZipFile(temp_docx_path, 'w') as new_docx:
-            for item in docx.infolist():
-                with docx.open(item) as file:
-                    if item.filename == 'word/document.xml':
-                        tree = ET.parse(file)
-                        root = tree.getroot()
-                        namespace = '{http://schemas.openxmlformats.org/wordprocessingml/2006/main}'
-                        namespace14 = '{http://schemas.microsoft.com/office/word/2010/wordml}'
-                        for body in root.findall(namespace + 'body'):
-                            for sdt in body.findall(namespace + 'sdt'):
-                                for sdtContent in sdt.findall(namespace + 'sdtContent'):
-                                    for p in sdtContent.findall(namespace + 'p'):
-                                        for r in p.findall(namespace + 'r'):
-                                            for t in r.findall(namespace + 't'):
-                                                text = t.text
-                                                if check_text(text):
-                                                    for newitem in texts:
-                                                        new_text = newitem.get('text', "")
-                                                        sdt_id = newitem.get('sdt_id', "")
-                                                        if p.get(namespace14 + 'paraId') == sdt_id:
-                                                            t.text = new_text
-                                        for ins in p.findall(namespace + 'ins'):
-                                            for r in ins.findall(namespace + 'r'):
-                                                for t in r.findall(namespace + 't'):
-                                                    text = t.text
-                                                    if check_text(text):
-                                                        for newitem in texts:
-                                                            new_text = newitem.get('text', "")
-                                                            sdt_id = newitem.get('sdt_id', "")
-                                                            if p.get(
-                                                                    namespace14 + 'paraId') == sdt_id:
-                                                                t.text = new_text
+def _replace_cell_text(cell: _Cell, new_text: str,
+                       run_style: Optional[RunStyle],
+                       para_format: Optional[ParagraphFormat],
+                       inherit_format: bool, target_lang: str,
+                       original_len: int):
+    """替换单元格文本（仅译文模式）"""
 
-                            for p in body.findall(namespace + 'p'):
-                                for ins in p.findall(namespace + 'ins'):
-                                    for r in ins.findall(namespace + 'r'):
-                                        for t in r.findall(namespace + 't'):
-                                            text = t.text
-                                            if check_text(text):
-                                                for newitem in texts:
-                                                    new_text = newitem.get('text', "")
-                                                    ins_id = newitem.get('ins_id', "")
-                                                    if ins.get(namespace + 'id') == ins_id:
-                                                        t.text = new_text
-                        modified_xml = ET.tostring(root, encoding='utf-8',
-                                                   xml_declaration=True).decode('utf-8')
-                        new_docx.writestr(item.filename, modified_xml)
-                    else:
-                        new_docx.writestr(item.filename, file.read())
-    os.replace(temp_docx_path, docx_path)
+    # 保存图片
+    image_elements = []
+    for paragraph in cell.paragraphs:
+        for run in paragraph.runs:
+            if _run_has_image(run):
+                image_elements.append(deepcopy(run._element))
+
+    # 清空单元格内容但保留第一个段落
+    while len(cell.paragraphs) > 1:
+        p = cell.paragraphs[-1]._element
+        p.getparent().remove(p)
+
+    # 清空第一个段落的内容
+    first_para = cell.paragraphs[0]
+    for run in first_para.runs:
+        run.clear()
+
+    # 处理多行文本
+    lines = new_text.split('\n')
+
+    for i, line in enumerate(lines):
+        if i == 0:
+            para = first_para
+            # 清空现有runs
+            for run in para.runs:
+                run.text = ""
+            # 添加新文本
+            if para.runs:
+                para.runs[0].text = line
+                _adjust_font_size_for_run(para.runs[0], run_style, len(line), original_len)
+            else:
+                new_run = para.add_run(line)
+                _apply_run_style(new_run, run_style, target_lang, len(line), original_len)
+        else:
+            para = cell.add_paragraph()
+            new_run = para.add_run(line)
+            _apply_run_style(new_run, run_style, target_lang, len(line), 0)
+
+        # 应用段落格式
+        _apply_paragraph_format(para, para_format)
+
+    # 恢复图片到最后一个段落
+    if image_elements and cell.paragraphs:
+        for img_elem in image_elements:
+            cell.paragraphs[-1]._p.append(img_elem)
+
+
+def _append_translation_to_cell(cell: _Cell, translated: str,
+                                run_style: Optional[RunStyle],
+                                para_format: Optional[ParagraphFormat],
+                                inherit_format: bool, target_lang: str):
+    """在单元格末尾添加译文（原文+译文模式）"""
+
+    if not cell.paragraphs:
+        para = cell.add_paragraph()
+        new_run = para.add_run(translated)
+        _apply_run_style(new_run, run_style, target_lang, len(translated), 0)
+        _apply_paragraph_format(para, para_format)
+        return
+
+    last_para = cell.paragraphs[-1]
+
+    # 添加换行
+    if last_para.runs:
+        last_para.runs[-1].add_break()
+
+    # 添加译文
+    new_run = last_para.add_run(translated)
+    _apply_run_style(new_run, run_style, target_lang, len(translated), 0)
+
+    # 确保格式保持
+    _apply_paragraph_format(last_para, para_format)
+
+
+def _apply_paragraph_format(paragraph: Paragraph, fmt: Optional[ParagraphFormat]):
+    """应用段落格式"""
+    if not fmt:
+        return
+
+    try:
+        # 对齐方式
+        if fmt.alignment is not None:
+            paragraph.alignment = fmt.alignment
+
+        pf = paragraph.paragraph_format
+
+        # 缩进
+        if fmt.left_indent is not None:
+            pf.left_indent = fmt.left_indent
+        if fmt.right_indent is not None:
+            pf.right_indent = fmt.right_indent
+        if fmt.first_line_indent is not None:
+            pf.first_line_indent = fmt.first_line_indent
+
+        # 段前段后间距
+        if fmt.space_before is not None:
+            pf.space_before = fmt.space_before
+        if fmt.space_after is not None:
+            pf.space_after = fmt.space_after
+
+        # 行间距
+        if fmt.line_spacing is not None:
+            pf.line_spacing = fmt.line_spacing
+        if fmt.line_spacing_rule is not None:
+            pf.line_spacing_rule = fmt.line_spacing_rule
+
+    except Exception as e:
+        logging.warning(f"应用段落格式失败: {e}")
+
+
+def _apply_run_style(run: Run, style: Optional[RunStyle],
+                     target_lang: str, new_len: int, original_len: int):
+    """应用样式到run"""
+    if not style:
+        _set_default_font(run, target_lang)
+        return
+
+    try:
+        font = run.font
+
+        # 字体名称
+        if style.font_name:
+            font.name = style.font_name
+
+        # 东亚字体
+        if target_lang in ['中文', '日语', '韩语']:
+            try:
+                run._element.get_or_add_rPr()
+                rFonts = run._element.rPr.get_or_add_rFonts()
+                if style.font_name_east_asia:
+                    rFonts.set(qn('w:eastAsia'), style.font_name_east_asia)
+                else:
+                    rFonts.set(qn('w:eastAsia'), '微软雅黑')
+            except:
+                pass
+
+        # 字体大小
+        if style.font_size:
+            font.size = _calculate_adjusted_size(style.font_size, new_len, original_len)
+
+        # 粗体、斜体、下划线、删除线
+        if style.font_bold is not None:
+            font.bold = style.font_bold
+        if style.font_italic is not None:
+            font.italic = style.font_italic
+        if style.font_underline is not None:
+            font.underline = style.font_underline
+        if style.font_strike is not None:
+            font.strike = style.font_strike
+
+        # 颜色
+        if style.font_color_rgb:
+            font.color.rgb = style.font_color_rgb
+
+    except Exception as e:
+        logging.warning(f"应用样式失败: {e}")
+
+
+def _adjust_font_size_for_run(run: Run, style: Optional[RunStyle],
+                              new_len: int, original_len: int):
+    """调整run的字体大小"""
+    if not style or not style.font_size:
+        return
+
+    try:
+        run.font.size = _calculate_adjusted_size(style.font_size, new_len, original_len)
+    except Exception as e:
+        logging.warning(f"调整字体大小失败: {e}")
+
+
+def _set_default_font(run: Run, target_lang: str):
+    """设置默认字体"""
+    try:
+        if target_lang in ['中文', '日语', '韩语']:
+            run.font.name = '微软雅黑'
+            run._element.get_or_add_rPr()
+            rFonts = run._element.rPr.get_or_add_rFonts()
+            rFonts.set(qn('w:eastAsia'), '微软雅黑')
+        else:
+            run.font.name = 'Times New Roman'
+    except:
+        pass
+
+
+def _calculate_adjusted_size(original_size: Pt, new_len: int, original_len: int) -> Pt:
+    """计算调整后的字体大小"""
+    if not original_size:
+        return Pt(11)
+
+    if original_len == 0 or new_len <= original_len:
+        return original_size
+
+    ratio = new_len / original_len
+
+    if ratio <= 1.2:
+        return original_size
+    elif ratio <= 1.5:
+        return Pt(max(8, original_size.pt * 0.95))
+    elif ratio <= 2.0:
+        return Pt(max(8, original_size.pt * 0.90))
+    else:
+        return Pt(max(8, original_size.pt * 0.85))

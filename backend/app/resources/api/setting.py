@@ -3,6 +3,7 @@ from flask_restful import Resource
 from app.utils.response import APIResponse
 from flask import current_app
 
+
 class SystemVersionResource(Resource):
     def get(self):
         """获取系统版本信息[^1]"""
@@ -10,6 +11,7 @@ class SystemVersionResource(Resource):
             'version': current_app.config['SYSTEM_VERSION'],
             'message': 'success'
         })
+
 
 class SystemSettingsResource(Resource):
     def get(self):

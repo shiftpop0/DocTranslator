@@ -7,14 +7,14 @@ from app import db
 
 
 class Customer(db.Model):
-    """ 前台用户表 """
+    """ 用户表 """
     __tablename__ = 'customer'
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     customer_no = db.Column(db.String(32))  # 用户编号
-    phone = db.Column(db.String(11))  # 手机号（长度11）
-    name = db.Column(db.String(255))  # 用户名
-    password = db.Column(db.String(64), nullable=False)  # 密码（SHA256长度）
-    email = db.Column(db.String(255), nullable=False)  # 邮箱
+    phone = db.Column(db.String(11))
+    name = db.Column(db.String(255))
+    password = db.Column(db.String(64), nullable=False)
+    email = db.Column(db.String(255), nullable=False)
     level = db.Column(db.Enum('common', 'vip'), default='common')  # 会员等级
     status = db.Column(db.Enum('enabled', 'disabled'), default='enabled')  # 账户状态
     deleted_flag = db.Column(db.Enum('N', 'Y'), default='N')  # 删除标记

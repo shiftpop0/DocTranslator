@@ -141,23 +141,23 @@ watch([() => paginationData.currentPage, () => paginationData.pageSize], getCust
       <div class="table-wrapper">
         <el-table :data="customerData">
           <!-- <el-table-column type="selection" width="50" align="center" /> -->
-          <el-table-column prop="id" label="用户编号" align="left" />
+          <el-table-column prop="id" label="用户编号" align="left" width="100" />
           <el-table-column prop="email" label="注册邮箱" align="left" />
-          <el-table-column prop="level" label="用户等级" align="left">
+          <el-table-column prop="level" label="用户等级" align="left" width="100">
             <template #default="scope">
               <el-tag v-if="scope.row.level == 'vip'" type="primary" effect="plain">会员用户</el-tag>
               <el-tag v-else type="warning" effect="plain">普通用户</el-tag>
             </template>
           </el-table-column>
-          <el-table-column prop="storage" label="已用存储空间" align="left">
+          <el-table-column prop="storage" label="已用存储空间" align="left" width="120">
             <template #default="{ row }"> {{ (row.storage / (1024 * 1024)).toFixed(2) }} MB </template>
           </el-table-column>
-          <el-table-column prop="storage" label="总存储空间" align="left">
+          <el-table-column prop="storage" label="总存储空间" align="left" width="120">
             <template #default="{ row }"> {{ (row.total_storage / (1024 * 1024)).toFixed(2) }} MB </template>
           </el-table-column>
 
           <!-- <el-table-column prop="storage" label="已用存储空间" align="left" /> -->
-          <el-table-column prop="status" label="账户状态" align="left">
+          <el-table-column prop="status" label="账户状态" align="left" width="80">
             <template #default="scope">
               <el-tag v-if="scope.row.status == 'enabled'" type="success" effect="plain">启用</el-tag>
               <el-tag v-else type="danger" effect="plain">禁用</el-tag>

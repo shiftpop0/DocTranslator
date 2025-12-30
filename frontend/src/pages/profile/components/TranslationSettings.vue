@@ -1,25 +1,16 @@
 <template>
-  <div class="translation-settings-container">
-    <el-tabs v-model="activeTab" class="settings-tabs">
-      <!-- AI翻译设置 -->
-      <el-tab-pane label="AI翻译" name="ai">
-        <ai-translation-settings ref="aiSettingsForm" />
+  <div class="translation-settings-wrapper">
+    <el-tabs v-model="activeTab" class="modern-tabs">
+      <el-tab-pane label="AI 翻译" name="ai">
+        <ai-translation-settings />
       </el-tab-pane>
-
-      <!-- 机器翻译设置 -->
       <el-tab-pane label="机器翻译" name="machine">
-        <machine-translation-settings ref="machineSettingsForm" />
+        <machine-translation-settings />
       </el-tab-pane>
-
-      <!-- 通用设置 -->
-      <el-tab-pane label="通用设置" name="common">
-        <common-settings ref="commonSettingsForm" />
+      <el-tab-pane label="通用偏好设置" name="common">
+        <common-settings />
       </el-tab-pane>
     </el-tabs>
-
-    <!-- <div class="action-buttons">
-      <el-button type="primary" @click="saveAllSettings">保存所有设置</el-button>
-    </div> -->
   </div>
 </template>
 
@@ -29,17 +20,28 @@ import AiTranslationSettings from './AiTranslationSettings.vue'
 import MachineTranslationSettings from './MachineTranslationSettings.vue'
 import CommonSettings from './CommonSettings.vue'
 const activeTab = ref('ai')
-
 </script>
 
-<style scoped>
-.translation-settings-container {
-  padding: 20px;
-}
-.settings-tabs {
-  margin-bottom: 20px;
-}
-.action-buttons {
-  text-align: center;
+<style scoped lang="scss">
+.modern-tabs {
+  :deep(.el-tabs__nav-wrap::after) {
+    height: 1px;
+    background-color: #e2e8f0;
+  }
+
+  :deep(.el-tabs__item) {
+    font-size: 15px;
+    color: #64748b;
+    height: 48px;
+
+    &.is-active {
+      color: #3b82f6;
+      font-weight: 600;
+    }
+  }
+
+  :deep(.el-tabs__content) {
+    overflow: visible;
+  }
 }
 </style>

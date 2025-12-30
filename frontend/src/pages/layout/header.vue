@@ -41,12 +41,12 @@
               <el-icon class="icon_svg"><UserFilled /></el-icon>
               <span class="pc_show">个人中心</span>
             </div>
-            <img
+            <!-- <img
               class="icon_vip pc_show"
-              v-if="store.level == 'vip'"
+              v-if="userStore.userInfo.level == 'vip'"
               src="@/assets/vip.png"
               alt=""
-            />
+            /> -->
             <el-dropdown placement="bottom-end" @command="user_action">
               <template #default>
                 <div>
@@ -109,12 +109,11 @@
 </template>
 <script setup>
 import { useRouter } from 'vue-router'
-import { store } from '@/store/index'
 import { useUserStore } from '@/store/user'
 import { useSettingsStore } from '@/store/settings'
 import { useTranslateStore } from '@/store/translate'
 import { authInfo } from '@/api/account'
-import { ref, computed, onMounted } from 'vue'
+import { ref, onMounted } from 'vue'
 import SvgIcon from '@/components/SvgIcon/index.vue'
 import { UserFilled } from '@element-plus/icons-vue'
 import TranslationSettings from '@/components/TranslationSettings.vue'
@@ -128,77 +127,6 @@ const router = useRouter()
 const logoutVisible = ref(false)
 const langMultipleLimit = ref(5)
 
-const types = [
-  {
-    value: 'trans_text',
-    label: '仅文字部分',
-    children: [
-      {
-        value: 'trans_text_only',
-        label: '仅译文',
-        children: [
-          {
-            value: 'trans_text_only_new',
-            label: '重排版面'
-          },
-          {
-            value: 'trans_text_only_inherit',
-            label: '继承原版面'
-          }
-        ]
-      },
-      {
-        value: 'trans_text_both',
-        label: '原文+译文',
-        children: [
-          {
-            value: 'trans_text_both_new',
-            label: '重排版面'
-          },
-          {
-            value: 'trans_text_both_inherit',
-            label: '继承原版面'
-          }
-        ]
-      }
-    ]
-  },
-  {
-    value: 'trans_all',
-    label: '全部内容',
-    children: [
-      {
-        value: 'trans_all_only',
-        label: '仅译文',
-        children: [
-          {
-            value: 'trans_all_only_new',
-            label: '重排版面'
-          },
-          {
-            value: 'trans_all_only_inherit',
-            label: '继承原版面'
-          }
-        ]
-      },
-      {
-        value: 'trans_all_both',
-        label: '原文+译文',
-        children: [
-          {
-            value: 'trans_all_both_new',
-            label: '重排版面'
-          },
-          {
-            value: 'trans_all_both_inherit',
-            label: '继承原版面'
-          }
-        ]
-      }
-    ]
-  }
-]
-
 // 获取用户信息
 const getUserInfo = async () => {
   try {
@@ -211,63 +139,14 @@ const getUserInfo = async () => {
   }
 }
 
-const form = ref({
-  server: store.level == 'vip' ? 'member' : 'openai',
-  api_url: 'https://api.openai.com',
-  api_key: '',
-  model: '',
-  backup_model: '',
-  langs: [],
-  lang: '',
-  type: [],
-  uuid: '',
-  prompt:
-    '你是一个文档翻译助手，请将以下文本、单词或短语直接翻译成{target_lang}，不返回原文本。如果文本中包含{target_lang}文本、特殊名词（比如邮箱、品牌名、单位名词如mm、px、℃等）、无法翻译等特殊情况，请直接返回原文而无需解释原因。遇到无法翻译的文本直接返回原内容。保留多余空格。',
-  threads: 10,
-  scanned: false, // 添加 scanned 字段
-  origin_lang: '', // 添加起始语言字段
-  comparison_id: '', //术语id
-  prompt_id: '', //提示语id
-  prompt_title: '',
-  doc2x_flag: 'N',
-  doc2x_secret_key: ''
-})
-
-const rules = {
-  files: [{ required: true, message: '请上传文件', trigger: ['blur', 'change'] }],
-  api_url: [
-    {
-      required: true,
-      message: '请输入接口地址',
-      trigger: ['blur', 'change']
-    }
-  ],
-  api_key: [
-    {
-      required: true,
-      message: '请输入API Key',
-      trigger: ['blur', 'change']
-    }
-  ],
-  server: [{ required: true, message: '请选择供应商', trigger: ['blur', 'change'] }],
-  type: [{ required: true, message: '请选择译文形式', trigger: ['blur', 'change'] }],
-  model: [{ required: true, message: '请选择模型', trigger: ['blur', 'change'] }],
-  langs: [{ required: true, message: '请选择翻译目标语言', trigger: ['blur', 'change'] }],
-  prompt: [{ required: true, message: '请填写系统提示语', trigger: ['blur', 'change'] }],
-  prompt_id: [{ required: true, message: '请选择提示语', trigger: ['blur', 'change'] }],
-  threads: [{ required: true, message: '请填写线程数', trigger: ['blur', 'change'] }],
-  doc2x_secret_key: [
-    { required: true, message: '请输入Doc2x的API KEY', trigger: ['blur', 'change'] }
-  ]
-}
-
 //用户操作
 function user_action(command) {
   if (command == 'pwd') {
-    router.push('/reset')
+    router.push('/password')
   }
   if (command == 'exit') {
     logoutVisible.value = !logoutVisible.value
+    router.push('/login')
   }
   if (command == 'profile') {
     router.push('/profile')
@@ -300,27 +179,18 @@ function confirmLogout() {
   userStore.logout()
   logoutVisible.value = false
 }
-// 获取系统相关设置
-const getSystemSettingsInfo = async () => {
-  const res = await getSystemSetting()
-  if (res.code === 200) {
-    console.log('系统信息', res.data)
-    // settingsStore.updateSystemSetting(res.data)
-  }
-}
+
 // 获取默认翻译设置
 const getTranslateSettingInfo = async () => {
   const res = await getTranslateSetting()
   if (res.code === 200) {
     // 更新系统设置store
     settingsStore.updateSystemSettings(res.data)
-    // translateStore.updateAISettingsField('api_url',res.data.api_url)
   }
 }
 onMounted(() => {
   getUserInfo()
   getTranslateSettingInfo()
-  // getSystemSettingsInfo()
 })
 </script>
 <style scoped lang="scss">
@@ -513,9 +383,6 @@ onMounted(() => {
       .el-form-item__label {
         justify-content: flex-start;
         color: #111111;
-      }
-      .el-input-number .el-input__inner {
-        text-align: left;
       }
     }
     .btn_box {

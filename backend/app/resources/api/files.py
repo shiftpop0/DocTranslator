@@ -1,7 +1,6 @@
 # resources/file.py
 import hashlib
 import uuid
-from werkzeug.utils import secure_filename
 import os
 from app import db
 from app.models.customer import Customer
@@ -141,6 +140,46 @@ class FileUploadResource(Resource):
         return file_path.is_relative_to(base_dir)
 
 
+class FileDeleteResource11(Resource):
+    @jwt_required()
+    def post(self):
+        """文件删除接口[^6]"""
+        data = request.form
+        if 'uuid' not in data:
+            return APIResponse.error('缺少必要参数', 400)
+
+        try:
+            # 查询文件记录
+            translate = Translate.query.filter_by(
+                uuid=data['uuid'],
+                customer_id=get_jwt_identity(),
+                deleted_flag='N'
+            ).first_or_404()
+
+            # 获取文件完整路径
+            base_dir = os.path.abspath(os.path.dirname(os.path.dirname(__file__)))
+            uploads_dir = os.path.join(base_dir, 'uploads')
+            file_path = os.path.join(uploads_dir, translate.origin_filepath)
+
+            # 删除物理文件
+            if os.path.exists(file_path):
+                os.remove(file_path)
+
+                # 更新用户存储空间
+                customer = Customer.query.get(get_jwt_identity())
+                customer.storage -= translate.origin_filesize
+
+            # 删除数据库记录（或标记删除）
+            db.session.delete(translate)  # 硬删除
+            db.session.commit()
+
+            return APIResponse.success(message='文件删除成功')
+
+        except Exception as e:
+            db.session.rollback()
+            current_app.logger.error(f"文件删除失败：{str(e)}")
+            return APIResponse.error('文件删除失败', 500)
+
 
 class FileDeleteResource(Resource):
     @jwt_required()
@@ -178,5 +217,3 @@ class FileDeleteResource(Resource):
             db.session.rollback()
             current_app.logger.error(f"文件删除失败：{str(e)}")
             return APIResponse.error('文件删除失败', 500)
-
-

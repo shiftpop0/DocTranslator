@@ -1,10 +1,7 @@
-# -- coding: utf-8 --**
 # resources/admin/customer.py
-from decimal import Decimal
-
 from flask import request
 from flask_restful import Resource, reqparse
-from flask_jwt_extended import jwt_required, get_jwt_identity
+from flask_jwt_extended import jwt_required
 
 from app import db
 from app.models import Customer
@@ -37,9 +34,6 @@ class AdminCustomerListResource(Resource):
 class CustomerStatusResource(Resource):
     @jwt_required()
     def post(self, id):
-        """
-        更改用户状态
-        """
         # 解析请求体中的状态参数
         parser = reqparse.RequestParser()
         parser.add_argument('status', type=str, required=True, choices=('enabled', 'disabled'),
@@ -68,7 +62,6 @@ class CustomerStatusResource(Resource):
 class AdminCreateCustomerResource(Resource):
     @jwt_required()
     def put(self):
-        """创建新用户[^2]"""
         data = request.json
         required_fields = ['email', 'password']  # 'name',
         if not all(field in data for field in required_fields):
@@ -95,7 +88,6 @@ class AdminCreateCustomerResource(Resource):
 class AdminCustomerDetailResource(Resource):
     @jwt_required()
     def get(self, id):
-        """获取用户详细信息[^3]"""
         customer = Customer.query.get_or_404(id)
         return APIResponse.success({
             'id': customer.id,
@@ -113,7 +105,6 @@ class AdminCustomerDetailResource(Resource):
 class AdminUpdateCustomerResource(Resource):
     @jwt_required()
     def post(self, id):
-        """编辑用户信息[^4]"""
         customer = Customer.query.get_or_404(id)
         data = request.json
 
@@ -136,7 +127,6 @@ class AdminUpdateCustomerResource(Resource):
 class AdminDeleteCustomerResource(Resource):
     @jwt_required()
     def delete(self, id):
-        """删除用户[^5]"""
         customer = Customer.query.get_or_404(id)
         customer.deleted_flag = 'Y'
         db.session.commit()

@@ -2,11 +2,9 @@
 from flask import request, current_app
 from flask_restful import Resource
 from flask_jwt_extended import create_access_token, get_jwt_identity, jwt_required
-
 from app import db
 from app.models.user import User
 from app.utils.response import APIResponse
-
 
 
 class AdminLoginResource(Resource):
@@ -88,7 +86,3 @@ class AdminChangePasswordResource(Resource):
         except Exception as e:
             current_app.logger.error(f"修改失败：{str(e)}")
             return APIResponse.error('服务器内部错误', 500)
-
-
-
-

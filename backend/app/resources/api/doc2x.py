@@ -1,13 +1,12 @@
 import os
 from datetime import datetime
-
 from flask_restful import Resource
 from flask import request, current_app
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from pathlib import Path
 
 from app import APIResponse, db
-from app.models import Customer, customer
+from app.models import Customer
 from app.models.translate import Translate
 from app.utils.doc2x import Doc2XService
 
