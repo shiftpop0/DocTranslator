@@ -10,6 +10,7 @@ from app.models.prompt import Prompt, PromptFav
 from app.utils.response import APIResponse
 
 
+
 # 获取提示语列表
 class MyPromptListResource(Resource):
     @jwt_required()
