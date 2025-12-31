@@ -2,7 +2,6 @@ from app.resources.admin.auth import AdminLoginResource
 from app.resources.admin.customer import AdminCustomerListResource, AdminCreateCustomerResource, \
     AdminCustomerDetailResource, AdminUpdateCustomerResource, AdminDeleteCustomerResource, \
     CustomerStatusResource
-from app.resources.admin.image import AdminImageResource
 from app.resources.admin.settings import AdminSettingNoticeResource, AdminSettingApiResource, \
      AdminSettingSiteResource, AdminInfoSettingOtherResource, \
     AdminEditSettingOtherResource
@@ -118,7 +117,6 @@ def register_routes(api):
     api.add_resource(AdminTranslateDownloadResource, '/api/admin/translate/download/<int:id>')
     api.add_resource(AdminTranslateDownloadBatchResource,'/api/admin/translates/download/batch')
 
-    api.add_resource(AdminImageResource, '/api/admin/image')
 
     api.add_resource(AdminSettingNoticeResource, '/api/admin/setting/notice')
     api.add_resource(AdminSettingApiResource, '/api/admin/setting/api')
