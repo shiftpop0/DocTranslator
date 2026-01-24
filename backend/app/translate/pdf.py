@@ -4,8 +4,6 @@ import shutil
 import asyncio
 import datetime
 from pathlib import Path
-
-# 修复导入路径
 from babeldoc.format.pdf import high_level
 from babeldoc.translator.translator import OpenAITranslator
 from babeldoc.docvision.table_detection.rapidocr import RapidOCRModel
@@ -30,6 +28,8 @@ def clean_output_filename(original_path: Path, output_dir: str) -> Path:
         '.no_watermark.zh.mono', '.no_watermark.zh.dual',
         '.zh.dual', '.zh.mono',
         '.no_watermark.zh.mono',
+        'no_watermark.zh.mono',
+        'no_watermark.en.mono',
         '.no_watermark.en.mono',
         'no_watermark.ko.mono',
         'no_watermark.ru.mono',
