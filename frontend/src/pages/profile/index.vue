@@ -74,10 +74,10 @@
                   </el-tag>
                 </div>
                 <div class="user-meta">
-                  <span class="email">
+                  <!-- <span class="email">
                     <el-icon><Message /></el-icon>
                     {{ userInfo.email }}
-                  </span>
+                  </span> -->
                   <span class="register-date">
                     <el-icon><Calendar /></el-icon>
                     注册于: {{ formatTime(userInfo.created_at) || '-' }}
@@ -114,7 +114,7 @@
 </template>
 
 <script setup>
-import Filing from '@/components/Filing.vue'
+import Filing from '@/components/filing.vue'
 import { ref, onMounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { formatTime } from '@/utils/tools'

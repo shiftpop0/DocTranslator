@@ -15,7 +15,7 @@
 
       <div class="info-section">
         <div class="name-row">
-          <h2 class="username">{{ userInfo.name ? userInfo.emali : '未设置昵称' }}</h2>
+          <h2 class="username">{{ userInfo.name || userInfo.email }}</h2>
           <span class="role-tag" :class="userInfo.level">
             <el-icon v-if="userInfo.level === 'vip'"><Trophy /></el-icon>
             {{ userInfo.level === 'vip' ? '尊享会员' : '普通用户' }}
@@ -23,10 +23,10 @@
         </div>
 
         <div class="meta-grid">
-          <div class="meta-item">
+          <!-- <div class="meta-item">
             <el-icon><Message /></el-icon>
             <span>{{ userInfo.email }}</span>
-          </div>
+          </div> -->
           <div class="meta-item">
             <el-icon><Calendar /></el-icon>
             <span>注册于 {{ formatTime(userInfo.created_at) }}</span>

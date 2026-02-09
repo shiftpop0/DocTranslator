@@ -81,8 +81,8 @@
                 <el-form-item>
                   <el-input
                     v-model="loginForm.email"
-                    placeholder="请输入邮箱地址"
-                    prefix-icon="Message"
+                    placeholder="请输入用户名"
+                    prefix-icon="User"
                   />
                 </el-form-item>
                 <!-- prop="password" -->
@@ -132,29 +132,9 @@
                 <el-form-item prop="email">
                   <el-input
                     v-model="registerForm.email"
-                    placeholder="请输入邮箱地址"
-                    prefix-icon="Message"
+                    placeholder="请输入用户名"
+                    prefix-icon="User"
                   />
-                </el-form-item>
-                <el-form-item prop="code">
-                  <el-input
-                    v-model="registerForm.code"
-                    placeholder="请输入验证码"
-                    prefix-icon="Key"
-                  >
-                    <template #suffix>
-                      <el-button
-                        type="primary"
-                        link
-                        class="code-btn"
-                        :disabled="codeDisabled"
-                        :loading="codeSending"
-                        @click="sendCode"
-                      >
-                        {{ codeText }}
-                      </el-button>
-                    </template>
-                  </el-input>
                 </el-form-item>
                 <el-form-item prop="password">
                   <el-input
@@ -225,8 +205,7 @@ const loginForm = reactive({
 })
 const loginRules = reactive({
   email: [
-    { required: true, message: '请输入邮箱地址', trigger: 'blur' },
-    { type: 'email', message: '请输入正确的邮箱格式', trigger: 'blur' }
+    { required: true, message: '请输入用户名', trigger: 'blur' }
   ],
   password: [
     { required: true, message: '请输入密码', trigger: 'blur' },
@@ -244,10 +223,9 @@ const registerForm = reactive({
 })
 const registerRules = reactive({
   email: [
-    { required: true, message: '请输入邮箱地址', trigger: 'blur' },
-    { type: 'email', message: '请输入正确的邮箱格式', trigger: 'blur' }
+    { required: true, message: '请输入用户名', trigger: 'blur' }
   ],
-  code: [{ required: true, message: '请输入验证码', trigger: 'blur' }],
+  // code: [{ required: true, message: '请输入验证码', trigger: 'blur' }],
   password: [
     { required: true, message: '请设置密码', trigger: 'blur' },
     { min: 6, message: '密码长度不能少于6位', trigger: 'blur' }
@@ -306,7 +284,13 @@ const doLogin = () => {
     if (valid) {
       loginLoading.value = true
       try {
-        const res = await login(loginForm)
+        const submitData = { ...loginForm }
+        if (submitData.email.indexOf('@local.com') !== -1) {
+            // 已有后缀，不做处理
+        } else if (!submitData.email.includes('@')) {
+            submitData.email = submitData.email + '@local.com'
+        }
+        const res = await login(submitData)
         if (res.code === 200) {
           userStore.updateToken(res.data.token)
           ElMessage.success('登录成功')
@@ -332,7 +316,14 @@ const doRegister = () => {
     if (valid) {
       registerLoading.value = true
       try {
-        const res = await register(registerForm)
+        const submitData = { ...registerForm }
+        if (submitData.email.indexOf('@local.com') !== -1) {
+            // 已有后缀，不做处理
+        } else if (!submitData.email.includes('@')) {
+            submitData.email = submitData.email + '@local.com'
+        }
+        submitData.code = '123456'
+        const res = await register(submitData)
         if (res.code === 200) {
           ElMessage.success('注册成功，请登录')
           activeTab.value = 'login'

@@ -2,6 +2,8 @@ from datetime import date
 from sqlalchemy import text, inspect
 from app import db
 from app.models.prompt import Prompt
+from app.models.user import User
+from app.models.customer import Customer
 
 
 # 定义初始化数据
@@ -101,6 +103,34 @@ def insert_initial_data(app):
         print("✅ 初始化数据完成！")
 
 
+def insert_initial_users(app):
+    """初始化默认用户数据"""
+    with app.app_context():
+        # 1. 初始化管理员
+        if not User.query.filter_by(email='admin').first():
+            admin = User(
+                name='admin',
+                password='123456',  # 明文存储
+                email='admin',
+                deleted_flag='N'
+            )
+            db.session.add(admin)
+            print("✅ 已创建默认管理员账号: admin / 123456")
+
+        # 2. 初始化测试用户
+        if not Customer.query.filter_by(email='test').first():
+            customer = Customer(
+                email='test',
+                level='common',
+                status='enabled',
+                deleted_flag='N',
+                total_storage=104857600
+            )
+            customer.set_password('123456')
+            db.session.add(customer)
+            print("✅ 已创建默认测试用户: test / 123456")
+        
+        db.session.commit()
 
 
 def is_auto_increment(table_name, column_name):

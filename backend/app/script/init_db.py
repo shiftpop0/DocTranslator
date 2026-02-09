@@ -40,6 +40,10 @@ def safe_init_mysql(app: Flask, sql_file: str = 'init.sql') -> bool:
                 logger.error("数据库配置未找到")
                 return False
 
+            if db_url.startswith('sqlite'):
+                logger.info("SQLite模式，跳过MySQL初始化")
+                return True
+
             # 解析连接信息（增强兼容性）
             conn_info = parse_db_url(db_url)
             if not conn_info:

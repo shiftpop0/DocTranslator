@@ -24,16 +24,17 @@ class SendRegisterCodeResource(Resource):
             return APIResponse.error('邮箱已存在', 400)
 
         code = ''.join(random.choices('0123456789', k=6))
-        send_code = SendCode(
-            send_type=1,
-            send_to=email,
-            code=code,
-            created_at=datetime.utcnow()
-        )
-        db.session.add(send_code)
+        # 离线环境跳过邮件发送
+        # send_code = SendCode(
+        #     send_type=1,
+        #     send_to=email,
+        #     code=code,
+        #     created_at=datetime.utcnow()
+        # )
+        # db.session.add(send_code)
         try:
-            EmailService.send_verification_code(email, code)
-            db.session.commit()
+            # EmailService.send_verification_code(email, code)
+            # db.session.commit()
             return APIResponse.success()
         except Exception as e:
             db.session.rollback()
@@ -49,12 +50,12 @@ class UserRegisterResource(Resource):
         if not all(field in data for field in required_fields):
             return APIResponse.error('缺少必要参数', 400)
 
-        # 验证码有效性验证
-        is_valid, msg = validate_verification_code(
-            data['email'], data['code'], 1
-        )
-        if not is_valid:
-            return APIResponse.error(msg, 400)
+        # 离线环境跳过验证码验证
+        # is_valid, msg = validate_verification_code(
+        #     data['email'], data['code'], 1
+        # )
+        # if not is_valid:
+        #     return APIResponse.error(msg, 400)
 
         customer = Customer(
             name=data.get('name', ''),

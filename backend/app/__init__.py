@@ -5,7 +5,7 @@ from .extensions import init_extensions, db, api
 from .models.setting import Setting
 from .resources.task.translate_service import TranslateEngine
 from .script.init_db import safe_init_mysql
-from .script.insert_init_db import insert_initial_data, set_auto_increment, insert_initial_settings
+from .script.insert_init_db import insert_initial_data, set_auto_increment, insert_initial_settings, insert_initial_users
 from .utils.response import APIResponse
 
 
@@ -48,6 +48,7 @@ def create_app(config_class=None):
         #     db.session.add(SystemSetting(key='version', value='business'))
         #     db.session.commit()
     insert_initial_data(app)
+    insert_initial_users(app)
     set_auto_increment(app)
     insert_initial_settings(app) # 初始化默认系统配置
     # 开发环境路由打印
