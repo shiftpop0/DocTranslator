@@ -31,7 +31,7 @@
             v-model="formData.new_password"
             type="password"
             show-password
-            placeholder="6-16位长度"
+            placeholder="2-16位长度"
             :prefix-icon="Key"
           />
         </el-form-item>
@@ -87,8 +87,8 @@ const formData = reactive({
 
 // 密码复杂度验证
 const validatePassword = (rule, value, callback) => {
-  if (value.length < 6) {
-    callback(new Error("密码至少需要6位"))
+  if (value.length < 2) {
+    callback(new Error("密码至少需要2位"))
   } else {
     callback()
   }

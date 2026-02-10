@@ -8,7 +8,7 @@ import Qs from 'qs'
 
 // create an axios instance
 const service = axios.create({
-  baseURL: '/api', //  import.meta.env.VITE_API_URL   url = base url + request url
+  baseURL: '', //  import.meta.env.VITE_API_URL   url = base url + request url
   withCredentials: true, // send cookies when cross-domain requests
   crossDomain: true,
   timeout: 30000, // request timeout

@@ -6,7 +6,7 @@ class ChangePasswordSchema(Schema):
         "required": "原密码不能为空"
     })
     new_password = fields.Str(required=True, validate=[
-        validate.Length(min=6, error="新密码至少6位")
+        validate.Length(min=2, error="新密码至少2位")
     ], error_messages={
         "required": "新密码不能为空"
     })
@@ -22,5 +22,5 @@ class EmailChangePasswordSchema(Schema):
     code = fields.Str(required=True, error_messages={
         "required": "验证码不能为空"
     })
-    new_password = fields.Str(required=True, validate=validate.Length(min=6))
+    new_password = fields.Str(required=True, validate=validate.Length(min=2))
     new_password_confirmation = fields.Str(required=True)

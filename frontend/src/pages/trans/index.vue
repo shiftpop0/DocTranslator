@@ -37,6 +37,10 @@
           </div>
         </el-upload>
       </div>
+      <!-- 提示语 -->
+      <div v-if="welcomeMessage" class="welcome-message" :style="welcomeMessageStyle">
+        {{ welcomeMessage }}
+      </div>
       <!-- 翻译列表表格展示 -->
       <div class="list_box">
         <div class="title_box">
@@ -265,6 +269,16 @@ const translatesLimit = ref(100)
 const storageTotal = ref(0)
 const storageUsed = ref(0)
 const storagePercentage = ref(0.0)
+
+// 欢迎语
+const welcomeMessage = ref("")
+const welcomeMessageStyle = ref({
+  fontSize: '24px',
+  fontWeight: 'bold',
+  textAlign: 'center',
+  margin: '20px 0',
+  color: 'red'
+})
 
 //版本状态信息
 const editionInfo = ref(false)
@@ -923,9 +937,37 @@ async function downAllTransFile() {
   }
 }
 
+const getSettings = async () => {
+   try {
+     const response = await fetch(`${API_URL}/api/common/all_settings`, {
+       method: 'GET',
+       headers: {
+         token: userStore.token
+       }
+     })
+    const res = await response.json()
+    if (res.code === 200) {
+      if (res.data.site_setting) {
+        if (res.data.site_setting.welcome_message) {
+          welcomeMessage.value = res.data.site_setting.welcome_message
+        }
+        if (res.data.site_setting.welcome_message_color) {
+          welcomeMessageStyle.value.color = res.data.site_setting.welcome_message_color
+        }
+        if (res.data.site_setting.welcome_message_size) {
+          welcomeMessageStyle.value.fontSize = res.data.site_setting.welcome_message_size
+        }
+      }
+    }
+  } catch (error) {
+    console.error('获取系统设置失败', error)
+  }
+}
+
 // 组件挂载时
 onMounted(() => {
   if (userStore.token) {
+    getSettings()
     getTranslatesData(1)
     form.value = { ...form.value, ...translateStore.getCurrentServiceForm }
   }

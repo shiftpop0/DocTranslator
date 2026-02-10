@@ -45,6 +45,25 @@ class AdminLoginResource(Resource):
             return APIResponse.error('服务器内部错误', 500)
 
 
+class AdminInfoResource(Resource):
+    @jwt_required()
+    def get(self):
+        """获取管理员信息"""
+        try:
+            admin_id = get_jwt_identity()
+            admin = User.query.get(admin_id)
+            if not admin:
+                return APIResponse.error('用户不存在', 404)
+            
+            return APIResponse.success({
+                'username': admin.name,
+                'roles': ['admin']
+            })
+        except Exception as e:
+            current_app.logger.error(f"获取管理员信息失败：{str(e)}")
+            return APIResponse.error('服务器内部错误', 500)
+
+
 class AdminChangePasswordResource(Resource):
     @jwt_required()
     def post(self):

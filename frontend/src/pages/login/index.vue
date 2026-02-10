@@ -209,7 +209,7 @@ const loginRules = reactive({
   ],
   password: [
     { required: true, message: '请输入密码', trigger: 'blur' },
-    { min: 6, message: '密码长度不能少于6位', trigger: 'blur' }
+    { min: 2, message: '密码长度不能少于2位', trigger: 'blur' }
   ]
 })
 
@@ -228,7 +228,7 @@ const registerRules = reactive({
   // code: [{ required: true, message: '请输入验证码', trigger: 'blur' }],
   password: [
     { required: true, message: '请设置密码', trigger: 'blur' },
-    { min: 6, message: '密码长度不能少于6位', trigger: 'blur' }
+    { min: 2, message: '密码长度不能少于2位', trigger: 'blur' }
   ],
   password2: [
     { required: true, message: '请确认密码', trigger: 'blur' },

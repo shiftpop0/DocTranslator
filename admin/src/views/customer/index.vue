@@ -1,12 +1,13 @@
 <script lang="ts" setup>
 import { reactive, ref, watch } from "vue"
-import { changeCustomerStatusApi, updateCustomerDataApi, getCustomerDataApi } from "@/api/customer"
+import { changeCustomerStatusApi, updateCustomerDataApi, getCustomerDataApi, deleteCustomerApi } from "@/api/customer"
 import { type CreateOrUpdateCustomerRequestData, type GetCustomerData } from "@/api/customer/types/customer"
-import { type FormInstance, type FormRules, ElMessage } from "element-plus"
+import { type FormInstance, type FormRules, ElMessage, ElMessageBox } from "element-plus"
 import { Search, Refresh, CirclePlus } from "@element-plus/icons-vue"
 import { usePagination } from "@/hooks/usePagination"
 import { cloneDeep } from "lodash-es"
 import Register from "./components/register.vue"
+import dayjs from "dayjs"
 
 defineOptions({
   // 命名当前组件
@@ -32,7 +33,7 @@ const formRef = ref<FormInstance | null>(null)
 const formData = ref<CreateOrUpdateCustomerRequestData>(cloneDeep(DEFAULT_FORM_DATA))
 const formRules: FormRules<CreateOrUpdateCustomerRequestData> = {
   email: [{ required: true, trigger: "blur", message: "请输入注册邮箱" }],
-  password: [{ min: 6, max: 16, message: "长度在 6 到 16 个字符", trigger: "blur" }],
+  password: [{ min: 2, max: 16, message: "长度在 2 到 16 个字符", trigger: "blur" }],
   level: [{ required: true, trigger: "blur", message: "请选择用户等级" }]
 }
 const handleCreateOrUpdate = () => {
@@ -63,6 +64,19 @@ const handleStatus = (id: number, status: string) => {
   changeCustomerStatusApi(id, status).then(() => {
     ElMessage.success("更改状态成功")
     getCustomerData()
+  })
+}
+
+const handleDelete = (row: GetCustomerData) => {
+  ElMessageBox.confirm(`正在删除用户：${row.email}，确认删除？`, "提示", {
+    confirmButtonText: "确定",
+    cancelButtonText: "取消",
+    type: "warning"
+  }).then(() => {
+    deleteCustomerApi(row.id).then(() => {
+      ElMessage.success("删除成功")
+      getCustomerData()
+    })
   })
 }
 //#endregion
@@ -163,8 +177,12 @@ watch([() => paginationData.currentPage, () => paginationData.pageSize], getCust
               <el-tag v-else type="danger" effect="plain">禁用</el-tag>
             </template>
           </el-table-column>
-          <el-table-column prop="created_at" label="注册时间" align="left" />
-          <el-table-column fixed="right" label="操作" width="100" align="left">
+          <el-table-column prop="created_at" label="注册时间" align="left">
+            <template #default="{ row }">
+              {{ dayjs(row.created_at).format("YYYY-MM-DD HH:mm:ss") }}
+            </template>
+          </el-table-column>
+          <el-table-column fixed="right" label="操作" width="260" align="left">
             <template #default="scope">
               <el-button type="primary" text size="small" @click="handleUpdate(scope.row)">编辑</el-button>
               <el-button
@@ -178,6 +196,7 @@ watch([() => paginationData.currentPage, () => paginationData.pageSize], getCust
               <el-button type="success" v-else text size="small" @click="handleStatus(scope.row.id, 'enabled')"
                 >启用</el-button
               >
+              <el-button type="danger" text size="small" @click="handleDelete(scope.row)">删除</el-button>
             </template>
           </el-table-column>
         </el-table>

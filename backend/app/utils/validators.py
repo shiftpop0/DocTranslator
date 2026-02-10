@@ -29,10 +29,10 @@ def validate_password_confirmation(data: dict):
 
 def validate_password_complexity(password: str):
     """密码复杂度验证"""
-    if len(password) < 6:
-        return False, "密码至少需要6位"
-    if not any(c.isalpha() for c in password) or not any(c.isdigit() for c in password):
-        return False, "密码需包含字母和数字"
+    if len(password) < 2:
+        return False, "密码至少需要2位"
+    # if not any(c.isalpha() for c in password) or not any(c.isdigit() for c in password):
+    #     return False, "密码需包含字母和数字"
     return True, None
 
 

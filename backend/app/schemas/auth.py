@@ -24,10 +24,10 @@ class RegisterSchema(Schema):
     })
     password = fields.String(
         required=True,
-        validate=validate.Length(min=6),
+        validate=validate.Length(min=2),
         error_messages={
             "required": "密码不能为空",
-            "too_short": "密码长度至少6位"
+            "too_short": "密码长度至少2位"
         }
     )
     code = fields.String(required=True, error_messages={"required": "验证码不能为空"})
@@ -49,7 +49,7 @@ class FindSendSchema(Schema):
 class FindResetSchema(Schema):
     email = fields.Email(required=True)
     code = fields.String(required=True)
-    password = fields.String(required=True, validate=lambda x: len(x) >= 6)
+    password = fields.String(required=True, validate=lambda x: len(x) >= 2)
     password_confirmation = fields.String(required=True)
 
     @validates_schema

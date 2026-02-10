@@ -18,7 +18,7 @@ class AdminCustomerListResource(Resource):
         parser.add_argument('limit', type=int, required=False, location='args')  # 可选，默认值为 10
         parser.add_argument('keyword', type=str, required=False, location='args')  # 可选，无默认值
         args = parser.parse_args()
-        query = Customer.query
+        query = Customer.query.filter(Customer.deleted_flag == 'N')
         if args['keyword']:
             query = query.filter(Customer.email.ilike(f"%{args['keyword']}%"))
 

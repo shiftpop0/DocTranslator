@@ -29,13 +29,6 @@
               <div class="icon_svg"><svg-icon icon-class="setting" /></div>
               <span class="pc_show">翻译设置</span>
             </div>
-            <div
-              class="btn_set"
-              @click="windowOpen('https://github.com/mingchen666/DocTranslator')"
-            >
-              <div class="icon_svg"><svg-icon icon-class="github" /></div>
-              <span class="pc_show">Github</span>
-            </div>
             <div class="btn_set" @click="$router.push('/profile')">
               <!-- <div class="icon_svg"><svg-icon icon-class="user" /></div> -->
               <el-icon class="icon_svg"><UserFilled /></el-icon>

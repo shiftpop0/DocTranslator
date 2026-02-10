@@ -44,3 +44,11 @@ export function registerCustomer(data: Customer.RegisterData) {
     data
   })
 }
+
+/** 删除 */
+export function deleteCustomerApi(id: number) {
+  return request({
+    url: `customer/${id}`,
+    method: "delete"
+  })
+}

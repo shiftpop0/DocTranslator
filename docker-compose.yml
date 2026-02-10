@@ -33,6 +33,9 @@ services:
       - ALLOWED_EMAIL_DOMAINS=qq.com,163.com,126.com
       # 跨域 允许的域名
       - ALLOWED_DOMAINS=*
+      # 文件上传限制
+      - MAX_FILE_SIZE=50
+      - MAX_USER_STORAGE=1024
     networks:
       - my-network
 

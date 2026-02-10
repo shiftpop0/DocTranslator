@@ -20,8 +20,21 @@ class ChangePasswordResource(Resource):
     @jwt_required()
     def post(self):
         """修改密码（旧密码验证）"""
+        # 调试日志：确认请求是否到达
+        # import logging
+        # logging.info(f"DEBUG: Headers: {request.headers}")
+
         user_id = get_jwt_identity()
-        data = request.json
+        
+        # 尝试获取数据，优先JSON，其次Form
+        try:
+            data = request.get_json(force=True, silent=True)
+            if data is None:
+                data = request.form.to_dict()
+        except Exception:
+            data = request.form.to_dict()
+
+        # logging.info(f"DEBUG: Data received: {data}")
 
         # 参数校验
         required_fields = ['oldpwd', 'newpwd', 'newpwd_confirmation']
@@ -80,7 +93,7 @@ class EmailChangePasswordResource(Resource):
     def post(self):
         """通过邮箱验证码修改密码"""
         user_id = get_jwt_identity()
-        data = request.json
+        data = request.get_json(silent=True) or request.form
 
         # 参数校验
         required_fields = ['code', 'newpwd', 'newpwd_confirmation']

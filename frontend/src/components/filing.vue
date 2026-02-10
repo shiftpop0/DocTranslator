@@ -1,14 +1,6 @@
 <template>
   <!-- 版权信息 -->
   <div class="filing">
-    <a
-      href="https://github.com/mingchen666/DocTranslator"
-      target="_blank"
-      rel="noopener noreferrer"
-      class="copyright-link"
-    >
-      <p>© 2025 DocTranslator 1.5.0 保留所有权利</p>
-    </a>
   </div>
 </template>
 
