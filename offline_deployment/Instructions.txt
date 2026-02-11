@@ -1,56 +1,90 @@
 ================================================================================
-DocTranslator 离线部署与更新指南 / Offline Deployment & Update Guide
+DocTranslator 离线部署指南 / Offline Deployment Guide
 ================================================================================
 
---------------------------------------------------------------------------------
-如何迁移更新 (How to Migrate Updates)
---------------------------------------------------------------------------------
-如果您在联网机器上修改了代码、数据库或配置，请按照以下步骤更新到离线服务器：
-
-1. **生成更新包 (On Networked Host)**
-   - 进入 `offline_deployment` 文件夹。
-   - 运行 `package_update.ps1` 脚本。
-   - **注意**：脚本会询问是否需要编译前端（Build Frontend）。
-     - 如果您修改了 `.vue` 或 `.js` 等前端源码，请选择 `Y` (Yes)，脚本会自动运行 `npm run build:prod`。
-     - 否则选择 `N` 跳过编译，直接打包现有的 `dist` 文件夹。
-   - 脚本运行结束后，会在项目根目录旁生成一个 `DocTranslator_Update` 文件夹。
-   - 该文件夹包含了所有最新的代码、编译后的前端、配置文件以及 Docker 镜像。
-
-2. **传输文件**
-   - 将 `DocTranslator_Update` 文件夹复制到离线服务器。
-
-3. **应用更新 (On Offline Server)**
-   - 停止当前服务：
-     `docker-compose -f offline_deployment/docker-compose.offline.yml down`
-   
-   - **备份数据 (重要)**：
-     如果您不想丢失服务器上的现有数据（如用户注册信息、翻译记录），请先备份 `backend/db` 和 `backend/storage` 目录。
-     注意：本次更新包中包含您在联网机器上的数据库文件。如果您直接覆盖，服务器上的数据将被联网机器的数据取代。
-   
-   - 覆盖文件：
-     将 `DocTranslator_Update` 文件夹内的内容覆盖到服务器的 `DocTranslator` 目录中。
-   
-   - 重新加载镜像：
-     进入 `offline_deployment`，运行 `./install_server.sh` (Linux) 或 `install_windows.bat` (Windows)。
-   
-   - 启动服务：
-     运行 `./run_server.sh` (Linux) 或 `run_windows.bat` (Windows)。
+本指南将指导您如何将项目从联网环境迁移到不联网的 Windows 主机和服务器。
 
 --------------------------------------------------------------------------------
-常规部署步骤 (Initial Deployment)
+第一步：在联网主机上准备 (Preparation on Networked Host)
 --------------------------------------------------------------------------------
-1. 在联网机器运行 `export_images.ps1`。
-2. 复制整个 `DocTranslator` 文件夹到离线机器。
-3. 运行 `offline_deployment/install_*.bat/sh` 导入镜像。
-4. 运行 `offline_deployment/run_*.bat/sh` 启动服务。
+1. 确保您的项目已在本地调试完成。
+2. 进入 `offline_deployment` 文件夹。
+3. 运行 `export_images.ps1` 脚本。
+   - 该脚本会构建最新的 backend 镜像，拉取 nginx 镜像，并将它们打包为 `images.tar`。
+   - 镜像文件 `images.tar` 会生成在 `offline_deployment` 文件夹中。
+4. 等待脚本完成。
+5. 将整个 `DocTranslator` 文件夹打包（例如 zip 压缩）。
 
 --------------------------------------------------------------------------------
-常用命令
+第二步：部署到不联网 Windows 主机 (Deploy to Offline Windows Host)
 --------------------------------------------------------------------------------
-- 检查端口占用 (Linux): `netstat -tuln | grep 5000`
-- 检查端口占用 (Windows): `netstat -ano | findstr 5000`
-- 获取本机 IP: `ipconfig` (Windows) / `ifconfig` (Linux)
+1. 将打包好的文件夹复制到不联网的 Windows 主机并解压。
+2. 进入 `offline_deployment` 文件夹。
+3. 双击运行 `install_windows.bat`。
+   - 这将导入 `images.tar` 中的 Docker 镜像。
+4. 双击运行 `run_windows.bat`。
+   - 这将启动 Docker 服务。
+5. 访问服务：
+   - 前端: http://localhost:1475
+   - 管理端: http://localhost:8081
+   - 后端 API: http://localhost:5000
 
-访问地址：
-- 前端: http://SERVER_IP:1475
-- 后台: http://SERVER_IP:8081
+--------------------------------------------------------------------------------
+第三步：部署到不联网服务器 (Deploy to Offline Server)
+--------------------------------------------------------------------------------
+假设您的服务器是 Linux 环境，且已安装 Docker 和 Docker Compose。
+
+1. 将 `DocTranslator` 文件夹从 Windows 主机上传到服务器。
+2. 进入 `offline_deployment` 目录：
+   cd DocTranslator/offline_deployment
+3. 赋予脚本执行权限：
+   chmod +x install_server.sh run_server.sh
+4. 运行安装脚本导入镜像：
+   ./install_server.sh
+5. 运行启动脚本：
+   ./run_server.sh
+6. 服务启动后，通过服务器 IP 访问对应端口。
+
+--------------------------------------------------------------------------------
+局域网访问配置 (LAN Access)
+--------------------------------------------------------------------------------
+本项目已配置为支持局域网访问。部署成功后，局域网内的其他电脑可以通过服务器的 IP 地址访问服务。
+
+1. 【如何获取服务器 IP】
+   - Linux: 运行 `ifconfig` 或 `ip addr`
+   - Windows: 运行 `ipconfig`
+
+2. 【访问地址示例】
+   假设服务器 IP 为 192.168.1.100：
+   - 前端访问地址: http://192.168.1.100:1475
+   - 管理后台地址: http://192.168.1.100:8081
+
+   注意：请确保服务器防火墙已放行 1475 和 8081 端口。
+
+--------------------------------------------------------------------------------
+常见问题与故障排查 (Troubleshooting)
+--------------------------------------------------------------------------------
+【如何检查端口是否被占用】
+本项目默认使用端口：5000 (后端), 1475 (前端), 8081 (管理端)
+
+1. Linux 服务器 (Server):
+   - 查看所有端口占用: netstat -tuln
+   - 查看特定端口(如5000): netstat -tuln | grep 5000
+   - 或者使用 lsof: lsof -i :5000
+   - 或者使用 ss: ss -tuln | grep 5000
+
+2. Windows 主机:
+   - 打开 CMD 或 PowerShell
+   - 查看特定端口(如5000): netstat -ano | findstr 5000
+
+【如果端口被占用怎么办】
+1. 找到占用端口的进程并关闭它。
+2. 或者修改 `offline_deployment/docker-compose.offline.yml` 文件中的端口映射。
+   例如将 5000:5000 改为 5001:5000
+
+--------------------------------------------------------------------------------
+注意事项 (Notes)
+--------------------------------------------------------------------------------
+- 所有部署脚本和配置文件现在都位于 `offline_deployment` 文件夹中。
+- `docker-compose.offline.yml` 中的路径已更新，以正确引用上级目录中的代码和配置。
+- 数据存储在 `backend/db` 和 `backend/storage` 目录中（位于 `offline_deployment` 的上级目录）。
