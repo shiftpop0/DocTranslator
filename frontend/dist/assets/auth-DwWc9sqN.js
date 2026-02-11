@@ -1,0 +1,1 @@
+import{ab as t}from"./index-Dylns0N4.js";function e(r){return t({url:"/api/register",method:"POST",data:r})}function n(r){return t({url:"/api/login",method:"POST",data:r})}function i(r){return t({url:"/api/find/send",method:"POST",data:{email:r}})}function o(r){return t({url:"/api/find",method:"POST",data:r})}export{o as a,i as f,n as l,e as r};

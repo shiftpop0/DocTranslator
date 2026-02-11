@@ -29,7 +29,9 @@ const emit = defineEmits(["success"])
 const DEFAULT_FORM_DATA: CreateOrUpdateCustomerRequestData = {
   email: "",
   password: "",
-  level: "common"
+  level: "common",
+  add_storage: 0,
+  storage: 0
 }
 
 const user = ref<CreateOrUpdateCustomerRequestData>(cloneDeep(DEFAULT_FORM_DATA))

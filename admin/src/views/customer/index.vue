@@ -23,7 +23,8 @@ const DEFAULT_FORM_DATA: CreateOrUpdateCustomerRequestData = {
   email: "",
   password: "",
   level: "common",
-  add_storage: 0
+  add_storage: 0,
+  storage: 0
   // status: true
   // storage: 0
 }
@@ -85,7 +86,7 @@ const handleDelete = (row: GetCustomerData) => {
 const handleUpdate = (row: GetCustomerData) => {
   dialogVisible.value = true
   // formData.value = cloneDeep(row)
-  formData.value = Object.assign(cloneDeep(row), { password: "" })
+  formData.value = Object.assign(cloneDeep(row), { password: "", add_storage: 0, storage: 0 })
 }
 //#endregion
 

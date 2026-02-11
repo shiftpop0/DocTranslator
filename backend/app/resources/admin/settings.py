@@ -182,11 +182,17 @@ class SystemStorageResource(Resource):
                 return APIResponse.error("缺少必要参数")
 
             base_dir = os.path.dirname(current_app.root_path)
-            target_path = os.path.join(base_dir, 'storage', *target.split('/'))
+            storage_path = os.path.abspath(os.path.join(base_dir, 'storage'))
+
+            # target可能是绝对路径（前端传回的文件路径）或相对路径（分类/日期）
+            if os.path.isabs(target):
+                target_path = os.path.abspath(target)
+            else:
+                # 处理相对路径，注意target可能包含 '/'
+                target_path = os.path.abspath(os.path.join(storage_path, target))
 
             # 安全检查
-            storage_path = os.path.join(base_dir, 'storage')
-            if not os.path.abspath(target_path).startswith(os.path.abspath(storage_path)):
+            if not target_path.startswith(storage_path):
                 return APIResponse.error("非法路径")
 
             # 执行删除

@@ -29,6 +29,10 @@
               <div class="icon_svg"><svg-icon icon-class="setting" /></div>
               <span class="pc_show">翻译设置</span>
             </div>
+            <div class="btn_set" @click="manualVisible = true">
+              <el-icon class="icon_svg" style="font-size: 16px; color: #666;"><Document /></el-icon>
+              <span class="pc_show">操作说明</span>
+            </div>
             <div class="btn_set" @click="$router.push('/profile')">
               <!-- <div class="icon_svg"><svg-icon icon-class="user" /></div> -->
               <el-icon class="icon_svg"><UserFilled /></el-icon>
@@ -70,6 +74,23 @@
       </div>
     </div>
 
+    <!-- Operation Manual Dialog -->
+    <el-dialog
+      v-model="manualVisible"
+      title="操作说明"
+      width="60%"
+      top="5vh"
+    >
+      <div class="manual-content" style="white-space: pre-wrap; line-height: 1.6; font-size: 16px;">
+        {{ operationManual }}
+      </div>
+      <template #footer>
+        <span class="dialog-footer">
+          <el-button @click="manualVisible = false">关闭</el-button>
+        </span>
+      </template>
+    </el-dialog>
+
     <!-- 退出弹窗 -->
     <el-dialog
       v-model="logoutVisible"
@@ -108,7 +129,7 @@ import { useTranslateStore } from '@/store/translate'
 import { authInfo } from '@/api/account'
 import { ref, onMounted } from 'vue'
 import SvgIcon from '@/components/SvgIcon/index.vue'
-import { UserFilled } from '@element-plus/icons-vue'
+import { UserFilled, Document } from '@element-plus/icons-vue'
 import TranslationSettings from '@/components/TranslationSettings.vue'
 import { getSystemSetting, getTranslateSetting } from '@/api/settings'
 const userStore = useUserStore()
@@ -118,6 +139,8 @@ const translateStore = useTranslateStore()
 const router = useRouter()
 
 const logoutVisible = ref(false)
+const manualVisible = ref(false)
+const operationManual = ref('')
 const langMultipleLimit = ref(5)
 
 // 获取用户信息
@@ -181,9 +204,25 @@ const getTranslateSettingInfo = async () => {
     settingsStore.updateSystemSettings(res.data)
   }
 }
+
+// 获取系统设置（包含操作说明）
+const getSystemSettingInfo = async () => {
+  try {
+    const res = await getSystemSetting()
+    if (res.code === 200 && res.data.site_setting) {
+      if (res.data.site_setting.operation_manual) {
+        operationManual.value = res.data.site_setting.operation_manual
+      }
+    }
+  } catch (error) {
+    console.error('获取系统设置失败:', error)
+  }
+}
+
 onMounted(() => {
   getUserInfo()
   getTranslateSettingInfo()
+  getSystemSettingInfo()
 })
 </script>
 <style scoped lang="scss">

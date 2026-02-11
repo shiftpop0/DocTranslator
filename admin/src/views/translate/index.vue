@@ -69,7 +69,7 @@ const handleMoreDownload = () => {
     headers: {
       "Content-Type": "application/json",
       token: token
-    },
+    } as any,
     body: JSON.stringify({ ids })
   })
     .then((response) => {

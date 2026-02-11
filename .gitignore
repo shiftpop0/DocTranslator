@@ -34,6 +34,13 @@ even/
 **/__pycache__/
 *.py[cod]
 
-.gitignore
-gitignore
-更新.txt
+# .gitignore
+# gitignore
+# 更新.txt
+
+## 部署和数据文件
+*.tar
+backend/db/*.db
+backend/storage/
+offline_deployment/images.tar
+DocTranslator_Update/

@@ -61,6 +61,7 @@ class UserRegisterResource(Resource):
             name=data.get('name', ''),
             email=data['email'],
             password=hash_password(data['password']),
+            level='vip',
             created_at=datetime.utcnow(),
             updated_at=datetime.utcnow()
         )
